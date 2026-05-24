@@ -1,4 +1,158 @@
 Starting world model training...
-[trainer] device=mps
+[trainer] device=cpu
 [trainer] 100,000 steps | warmup=1,000 | seq_len=16 | batch=8
-  step   5,000/100,000  loss=32.0080  kl=14.081  elapsed=5.0m  eta≈96m  traj=10
+  step   5,000/100,000  loss=32.0079  kl=9.756  elapsed=2.5m  eta≈48m  traj=10
+  step  10,000/100,000  loss=32.0047  kl=8.151  elapsed=5.7m  eta≈51m  traj=20
+  step  15,000/100,000  loss=32.0033  kl=10.302  elapsed=8.9m  eta≈50m  traj=30
+  step  20,000/100,000  loss=32.0029  kl=10.371  elapsed=12.1m  eta≈48m  traj=40
+  step  25,000/100,000  loss=32.0028  kl=10.042  elapsed=15.2m  eta≈46m  traj=50
+  step  30,000/100,000  loss=32.0026  kl=13.941  elapsed=18.5m  eta≈43m  traj=60
+  step  35,000/100,000  loss=32.0023  kl=12.357  elapsed=21.9m  eta≈41m  traj=70
+  step  40,000/100,000  loss=32.0023  kl=8.668  elapsed=25.1m  eta≈38m  traj=80
+  step  45,000/100,000  loss=32.0024  kl=12.054  elapsed=28.3m  eta≈35m  traj=90
+  step  50,000/100,000  loss=32.0021  kl=11.283  elapsed=31.7m  eta≈32m  traj=100
+  step  55,000/100,000  loss=32.0020  kl=15.312  elapsed=35.7m  eta≈29m  traj=110
+  step  60,000/100,000  loss=32.0023  kl=11.473  elapsed=39.8m  eta≈27m  traj=120
+  step  65,000/100,000  loss=32.0020  kl=16.047  elapsed=44.0m  eta≈24m  traj=130
+  step  70,000/100,000  loss=32.0021  kl=14.950  elapsed=48.2m  eta≈21m  traj=140
+  step  75,000/100,000  loss=32.0021  kl=17.572  elapsed=52.5m  eta≈17m  traj=150
+  step  80,000/100,000  loss=32.0017  kl=23.331  elapsed=56.8m  eta≈14m  traj=160
+  step  85,000/100,000  loss=32.0019  kl=17.003  elapsed=61.0m  eta≈11m  traj=170
+  step  90,000/100,000  loss=32.0021  kl=14.921  elapsed=65.1m  eta≈7m  traj=180
+  step  95,000/100,000  loss=32.0018  kl=14.935  elapsed=69.3m  eta≈4m  traj=190
+  step 100,000/100,000  loss=32.0021  kl=15.218  elapsed=73.4m  eta≈0m  traj=200
+[trainer] done in 73.4 min | 200 episodes | 99001 grad steps
+Training complete in 73.4 min | 100,000 states logged
+  mean KL=13.5064  std=6.9407  mean recon=0.1095
+Collecting evaluation sets...
+[collect] Set A (in-distribution)...
+  collected episode 5/20
+  collected episode 10/20
+  collected episode 15/20
+  collected episode 20/20
+  Set A: 10000 states | mean KL=21.0674
+[collect] Set B (near-OOD, noisy obs)...
+  collected episode 5/20
+  collected episode 10/20
+  collected episode 15/20
+  collected episode 20/20
+  Set B: 10000 states | mean KL=25.5780
+[collect] Set C (contrastive)...
+  Set C: 200 C1 (OOD-but-accurate) + 200 C2 (ID-but-failing) = 400 total
+Set A: 10000 states | mean KL=21.0674
+Set B: 10000 states | mean KL=25.5780
+Set C: 400 states | C1=200 C2=200
+Training 3 ensemble model(s) in parallel...
+[ensemble worker] seed=0 starting[ensemble worker] seed=1 starting
+[ensemble worker] seed=2 starting
+
+[trainer] device=cpu[trainer] device=cpu
+
+[trainer] device=cpu
+[trainer] 100,000 steps | warmup=1,000 | seq_len=16 | batch=8[trainer] 100,000 steps | warmup=1,000 | seq_len=16 | batch=8[trainer] 100,000 steps | warmup=1,000 | seq_len=16 | batch=8
+
+
+  step   5,000/100,000  loss=32.0089  kl=8.477  elapsed=6.7m  eta≈127m  traj=10
+  step   5,000/100,000  loss=32.0082  kl=7.975  elapsed=7.3m  eta≈139m  traj=10
+  step   5,000/100,000  loss=32.0075  kl=6.581  elapsed=7.4m  eta≈140m  traj=10
+  step  10,000/100,000  loss=32.0055  kl=8.672  elapsed=14.7m  eta≈132m  traj=20
+  step  10,000/100,000  loss=32.0039  kl=7.939  elapsed=16.5m  eta≈148m  traj=20
+  step  10,000/100,000  loss=32.0045  kl=7.296  elapsed=16.5m  eta≈149m  traj=20
+  step  15,000/100,000  loss=32.0034  kl=10.012  elapsed=24.5m  eta≈139m  traj=30
+  step  15,000/100,000  loss=32.0033  kl=8.245  elapsed=26.3m  eta≈149m  traj=30
+  step  15,000/100,000  loss=32.0027  kl=9.191  elapsed=26.6m  eta≈151m  traj=30
+  step  20,000/100,000  loss=32.0030  kl=7.736  elapsed=34.9m  eta≈139m  traj=40
+  step  20,000/100,000  loss=32.0025  kl=6.909  elapsed=35.8m  eta≈143m  traj=40
+  step  20,000/100,000  loss=32.0025  kl=8.026  elapsed=36.7m  eta≈147m  traj=40
+  step  25,000/100,000  loss=32.0025  kl=9.781  elapsed=44.1m  eta≈132m  traj=50
+  step  25,000/100,000  loss=32.0025  kl=7.130  elapsed=44.1m  eta≈132m  traj=50
+  step  25,000/100,000  loss=32.0023  kl=9.231  elapsed=45.8m  eta≈138m  traj=50
+  step  30,000/100,000  loss=32.0022  kl=10.782  elapsed=54.2m  eta≈126m  traj=60
+  step  30,000/100,000  loss=32.0025  kl=9.585  elapsed=54.4m  eta≈127m  traj=60
+  step  30,000/100,000  loss=32.0021  kl=7.843  elapsed=56.2m  eta≈131m  traj=60
+  step  35,000/100,000  loss=32.0024  kl=10.798  elapsed=64.7m  eta≈120m  traj=70
+  step  35,000/100,000  loss=32.0027  kl=6.553  elapsed=64.8m  eta≈120m  traj=70
+  step  35,000/100,000  loss=32.0024  kl=10.733  elapsed=66.8m  eta≈124m  traj=70
+  step  40,000/100,000  loss=32.0022  kl=10.068  elapsed=74.5m  eta≈112m  traj=80
+  step  40,000/100,000  loss=32.0024  kl=15.799  elapsed=74.5m  eta≈112m  traj=80
+  step  40,000/100,000  loss=32.0022  kl=9.416  elapsed=76.4m  eta≈115m  traj=80
+  step  45,000/100,000  loss=32.0022  kl=8.981  elapsed=84.8m  eta≈104m  traj=90
+  step  45,000/100,000  loss=32.0024  kl=12.738  elapsed=85.2m  eta≈104m  traj=90
+  step  45,000/100,000  loss=32.0022  kl=9.766  elapsed=87.1m  eta≈106m  traj=90
+  step  50,000/100,000  loss=32.0027  kl=10.368  elapsed=95.4m  eta≈95m  traj=100
+  step  50,000/100,000  loss=32.0023  kl=10.887  elapsed=96.1m  eta≈96m  traj=100
+  step  50,000/100,000  loss=32.0021  kl=12.527  elapsed=97.9m  eta≈98m  traj=100
+  step  55,000/100,000  loss=32.0021  kl=12.846  elapsed=108.1m  eta≈88m  traj=110
+  step  55,000/100,000  loss=32.0021  kl=16.226  elapsed=108.8m  eta≈89m  traj=110
+  step  55,000/100,000  loss=32.0021  kl=12.325  elapsed=109.9m  eta≈90m  traj=110
+  step  60,000/100,000  loss=32.0020  kl=11.592  elapsed=117.0m  eta≈78m  traj=120
+  step  60,000/100,000  loss=32.0019  kl=9.652  elapsed=117.9m  eta≈79m  traj=120
+  step  60,000/100,000  loss=32.0019  kl=9.018  elapsed=119.1m  eta≈79m  traj=120
+  step  65,000/100,000  loss=32.0020  kl=12.564  elapsed=125.4m  eta≈68m  traj=130
+  step  65,000/100,000  loss=32.0019  kl=14.231  elapsed=126.5m  eta≈68m  traj=130
+  step  65,000/100,000  loss=32.0021  kl=11.571  elapsed=127.0m  eta≈68m  traj=130
+  step  70,000/100,000  loss=32.0020  kl=13.378  elapsed=136.6m  eta≈59m  traj=140
+  step  70,000/100,000  loss=32.0018  kl=14.158  elapsed=137.8m  eta≈59m  traj=140
+  step  70,000/100,000  loss=32.0020  kl=15.459  elapsed=138.6m  eta≈59m  traj=140
+  step  75,000/100,000  loss=32.0018  kl=15.495  elapsed=147.1m  eta≈49m  traj=150
+  step  75,000/100,000  loss=32.0020  kl=13.499  elapsed=148.5m  eta≈50m  traj=150
+  step  75,000/100,000  loss=32.0020  kl=13.544  elapsed=149.1m  eta≈50m  traj=150
+  step  80,000/100,000  loss=32.0017  kl=18.380  elapsed=157.3m  eta≈39m  traj=160
+  step  80,000/100,000  loss=32.0017  kl=13.711  elapsed=158.9m  eta≈40m  traj=160
+  step  80,000/100,000  loss=32.0019  kl=18.316  elapsed=159.3m  eta≈40m  traj=160
+  step  85,000/100,000  loss=32.0016  kl=11.525  elapsed=167.2m  eta≈30m  traj=170
+  step  85,000/100,000  loss=32.0016  kl=11.837  elapsed=169.0m  eta≈30m  traj=170
+  step  85,000/100,000  loss=32.0024  kl=13.089  elapsed=169.1m  eta≈30m  traj=170
+  step  90,000/100,000  loss=32.0017  kl=14.185  elapsed=176.0m  eta≈20m  traj=180
+  step  90,000/100,000  loss=32.0017  kl=12.779  elapsed=178.0m  eta≈20m  traj=180
+  step  90,000/100,000  loss=32.0019  kl=13.955  elapsed=178.6m  eta≈20m  traj=180
+  step  95,000/100,000  loss=32.0018  kl=11.220  elapsed=185.4m  eta≈10m  traj=190
+  step  95,000/100,000  loss=32.0018  kl=19.159  elapsed=187.2m  eta≈10m  traj=190
+  step  95,000/100,000  loss=32.0017  kl=10.238  elapsed=188.7m  eta≈10m  traj=190
+  step 100,000/100,000  loss=32.0018  kl=13.611  elapsed=194.6m  eta≈0m  traj=200
+[trainer] done in 194.6 min | 200 episodes | 99001 grad steps
+[ensemble worker] seed=0 done
+  step 100,000/100,000  loss=32.0015  kl=13.213  elapsed=195.8m  eta≈0m  traj=200
+[trainer] done in 195.8 min | 200 episodes | 99001 grad steps
+[ensemble worker] seed=2 done
+  step 100,000/100,000  loss=32.0019  kl=14.349  elapsed=196.7m  eta≈0m  traj=200
+[trainer] done in 196.7 min | 200 episodes | 99001 grad steps
+[ensemble worker] seed=1 done
+  all 3 ensemble models done in 196.7 min
+Running probe analysis...
+  Probe A (KL gap)...
+    ID=0.9019  A=0.8723  B=0.8070  C=0.9918
+  Probe B (rollout variance)...
+  Probe B: computing training rollout variance...
+  Probe B: evaluating on Sets A, B, C...
+    ID=0.8947  A=0.6265  B=0.7343  C=0.7734
+  Probe C (recon sanity check)...
+    ID=0.9263  A=0.9518  B=0.7944  C=0.9829
+  Ensemble disagreement baseline...
+    Set C AUROC=0.6176
+
+### AUROC Results Table
+
+  Block (per-quarter h_t) analysis...
+
+### Per-Block AUROC
+
+  h_t vs z_t comparison...
+
+### h_t vs z_t AUROC
+
+Generating figures...
+[figures] saved outputs/figures/roc_curves.png
+[figures] saved outputs/figures/block_heatmap.png
+[figures] saved outputs/figures/kl_distribution.png
+
+## Verdict
+
+Criterion 1 — Probe A Set A AUROC > 0.72: 0.8723 → PASS ✓
+Criterion 2 — Probe A Set C AUROC > 0.63: 0.9918 → PASS ✓
+
+**POSITIVE RESULT** — signal exists. Phase 2 and 3 are justified.
+
+---
+**Total wall time:** 4.53 hours
+Experiment complete.
