@@ -20,17 +20,21 @@ This is Phase 1 of 3. A positive result here justifies Phases 2 (temporal propag
 
 ## Model Configuration
 
-A scaled-down DreamerV3 (XS config from the paper's Table 1):
+A scaled-down DreamerV3 (XS config from the paper's Table 1), compared against the full XL model used in the paper's main benchmarks:
 
-| Parameter | Value |
-|---|---|
-| Deterministic state `h_t` | 256-dim GRU hidden state |
-| Stochastic state `z_t` | 32 categoricals × 32 classes (1024-dim) |
-| Encoder embed dim | 64 |
-| Observation space | 5-dim (cartpole position + velocity) |
-| Action space | 1-dim (slider force) |
-| Training budget | 100,000 environment steps |
-| KL free bits | 1.0 nats (prevents posterior collapse) |
+| Parameter | This experiment (XS) | Full DreamerV3 (XL) | Scale factor |
+|---|---|---|---|
+| Deterministic state `h_t` | **256-dim** GRU | **4096-dim** GRU | 16× |
+| Stochastic state `z_t` | 32 cat × 32 classes (1024-dim) | 32 cat × 32 classes (1024-dim) | 1× (identical) |
+| MLP hidden units | 640 | 8192 | 12.8× |
+| Total parameters | ~12M | ~200M | ~17× |
+| Encoder | Linear (5-dim obs) | CNN (64×64 image) | — |
+| Observation space | 5-dim (cartpole position + velocity) | 64×64 RGB image | — |
+| Action space | 1-dim (slider force) | varies (up to 38-dim) | — |
+| Training budget | 100,000 env steps | 200M+ env steps | 2000× |
+| KL free bits | 1.0 nats | 1.0 nats | identical |
+
+The stochastic state dimensionality is identical across all DreamerV3 model sizes — only `h_t` and the MLP width scale. This means the XS probe results directly test whether KL is linearly readable from `h_t` at the smallest representational scale. If the signal holds here, the question for Phase 2 is whether it holds at 16× the GRU width.
 
 Environment: `dm_control cartpole_swingup`, random policy.
 
