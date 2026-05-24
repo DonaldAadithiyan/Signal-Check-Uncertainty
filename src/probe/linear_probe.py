@@ -185,29 +185,36 @@ def run_ht_vs_zt(training_states, set_a, set_c):
 
 def ensemble_disagreement(models, set_c, cfg):
     """
-    Variance of each model's one-step prior prediction across the ensemble.
-    Returns (disagreement_scores, auroc_on_set_c).
+    Ensemble disagreement: each model independently encodes the raw observation
+    through its own encoder and RSSM (from zero state), then decodes a prediction.
+    Variance across models' predictions = disagreement = uncertainty estimate.
+
+    Each model uses its own weights end-to-end on set_c['obs'].
+    We do NOT feed one model's h_t into another model — those spaces are not aligned.
+    Limitation: single-step, no trajectory context (full trajectories not stored).
     """
     device = next(models[0].parameters()).device
-    batch  = 512
+    batch   = 512
+    obs_arr = set_c['obs']
     all_preds = []
 
     for model in models:
         model.eval()
         preds = []
-        h_arr = set_c['h']
         with torch.no_grad():
-            for i in range(0, len(h_arr), batch):
-                h_b = torch.tensor(h_arr[i:i + batch], dtype=torch.float32, device=device)
-                N   = h_b.shape[0]
-                z_b = torch.zeros(N, cfg['rssm_stoch'] * cfg['rssm_classes'], device=device)
-                a_b = torch.zeros(N, cfg['act_dim'], device=device)
-                h_n, z_n, _ = model.rssm.imagine_step(h_b, z_b, a_b)
-                dec = model.decoder(torch.cat([h_n, z_n], dim=-1))
+            for i in range(0, len(obs_arr), batch):
+                obs_b = torch.tensor(obs_arr[i:i + batch], dtype=torch.float32, device=device)
+                N     = obs_b.shape[0]
+                h_b   = torch.zeros(N, cfg['rssm_deter'],                        device=device)
+                z_b   = torch.zeros(N, cfg['rssm_stoch'] * cfg['rssm_classes'],  device=device)
+                a_b   = torch.zeros(N, cfg['act_dim'],                            device=device)
+                embed = model.encoder(obs_b)
+                h_n, z_n, _, _ = model.rssm.observe_step(h_b, z_b, a_b, embed)
+                dec   = model.decoder(torch.cat([h_n, z_n], dim=-1))
                 preds.append(dec.cpu().numpy())
         all_preds.append(np.concatenate(preds, axis=0))
 
-    stacked      = np.stack(all_preds, axis=0)         # (n_models, N, obs_dim)
-    disagreement = stacked.var(axis=0).mean(axis=-1)   # (N,)
+    stacked      = np.stack(all_preds, axis=0)       # (n_models, N, obs_dim)
+    disagreement = stacked.var(axis=0).mean(axis=-1) # (N,)
     auc          = auroc_direct(disagreement, set_c['labels'])
     return disagreement, auc

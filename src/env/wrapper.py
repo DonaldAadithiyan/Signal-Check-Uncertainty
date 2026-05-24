@@ -3,13 +3,13 @@ from dm_control import suite
 
 
 class CartpoleEnv:
-    """Thin wrapper around dm_control cartpole_swingup."""
+    """Thin wrapper around dm_control cartpole tasks."""
 
-    def __init__(self, noisy=False, noise_std=0.1, seed=None):
+    def __init__(self, task='swingup', noisy=False, noise_std=0.1, seed=None):
         self.noisy = noisy
         self.noise_std = noise_std
         self._rng = np.random.default_rng(seed)
-        self._env = suite.load('cartpole', 'swingup', task_kwargs={'random': seed or 0})
+        self._env = suite.load('cartpole', task, task_kwargs={'random': seed or 0})
         self.obs_dim = 5    # position(3) + velocity(2)
         self.act_dim = 1
 
