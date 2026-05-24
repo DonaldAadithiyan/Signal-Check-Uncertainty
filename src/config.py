@@ -1,11 +1,3 @@
-import os
-import torch
-
-def _auto_device():
-    if torch.backends.mps.is_available():
-        return 'mps'
-    return 'cpu'
-
 XS_CONFIG = dict(
     # RSSM XS configuration (DreamerV3 paper Table 1)
     rssm_deter=256,
@@ -40,8 +32,9 @@ XS_CONFIG = dict(
     # Ensemble
     ensemble_seeds=[0, 1, 2],
 
-    # Device (auto-detect MPS on Apple Silicon, else CPU)
-    device=_auto_device(),
+    # Device: CPU is 2x faster than MPS for batch_size=8 due to kernel-launch overhead.
+    # Switch to 'mps' if you increase batch_size to >= 64.
+    device='cpu',
 
     # Paths
     output_dir='outputs',

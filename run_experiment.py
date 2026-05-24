@@ -11,6 +11,7 @@ import os
 import csv
 import time
 import argparse
+import multiprocessing as mp
 import numpy as np
 import torch
 
@@ -98,31 +99,44 @@ def phase_collect(model, cfg):
 
 # ─── Phase 3: Ensemble ───────────────────────────────────────────────────────
 
+def _ensemble_worker(args):
+    """Top-level function required for multiprocessing pickling."""
+    seed, cfg_s = args
+    import sys; sys.path.insert(0, '.')
+    from src.training.trainer import train_world_model
+    print(f"[ensemble worker] seed={seed} starting", flush=True)
+    train_world_model(cfg_s, seed=seed)
+    print(f"[ensemble worker] seed={seed} done", flush=True)
+
+
 def phase_ensemble(cfg):
     flag  = 'outputs/checkpoints/ensemble_complete.flag'
     seeds = cfg['ensemble_seeds']
+    cks   = {s: f"outputs/checkpoints/ensemble_seed{s}.pt" for s in seeds}
 
     if os.path.exists(flag):
         log("[phase 3] ensemble already trained — loading")
-        return [_load_ensemble_model(cfg, seed=s) for s in seeds]
+        return [_load_ensemble_model(cfg, ck_path=cks[s]) for s in seeds]
 
-    log("Training ensemble (3 seeds)...", section="Phase 3 — Ensemble Training")
-    models = []
-    for s in seeds:
-        ck = f"outputs/checkpoints/ensemble_seed{s}.pt"
-        if os.path.exists(ck):
-            log(f"  seed {s}: checkpoint exists — loading")
-            m = _load_ensemble_model(cfg, ck_path=ck)
-        else:
-            log(f"  seed {s}: training...")
-            t0    = time.time()
-            cfg_s = {**cfg, 'checkpoint_path': ck}
-            m, _  = train_world_model(cfg_s, seed=s)
-            log(f"  seed {s}: done in {(time.time()-t0)/60:.1f} min")
-        models.append(m)
+    missing = [(s, {**cfg, 'checkpoint_path': cks[s]})
+               for s in seeds if not os.path.exists(cks[s])]
+    done    = [s for s in seeds if os.path.exists(cks[s])]
+
+    if done:
+        log(f"[phase 3] seeds {done} already checkpointed")
+
+    if missing:
+        n = len(missing)
+        log(f"Training {n} ensemble model(s) in parallel...",
+            section="Phase 3 — Ensemble Training")
+        t0 = time.time()
+        ctx = mp.get_context('spawn')
+        with ctx.Pool(n) as pool:
+            pool.map(_ensemble_worker, missing)
+        log(f"  all {n} ensemble models done in {(time.time()-t0)/60:.1f} min")
 
     open(flag, 'w').close()
-    return models
+    return [_load_ensemble_model(cfg, ck_path=cks[s]) for s in seeds]
 
 
 def _load_ensemble_model(cfg, seed=None, ck_path=None):
