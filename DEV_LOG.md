@@ -135,19 +135,20 @@ Three probes are tested, each using a different definition of "uncertain." The e
 
 ### Unified Results Table
 
-| Method | Train held-out | Set A (ID) | Set B (noisy OOD) | Set C (KL-matched) | Set C Strong (novel task) |
+| Method | Train held-out | Set A (ID) | Set B (noisy OOD) | Set C (KL-matched) | Set C Strong† |
 |---|---|---|---|---|---|
-| **Probe A** — KL → h_t | 0.9019 | 0.8632 | 0.8464 | **0.7227** | **0.7216** |
+| **Probe A** — KL → h_t | 0.9019 | 0.8632 | 0.8464 | **0.7227** | 0.7216 |
 | **Probe B** — rollout variance | 0.8946 | 0.6285 | 0.7561 | 0.6256 | 0.6035 |
 | **Probe C** — recon → h_t | 0.9263 | 0.9518 | 0.7944 | 0.7210 | 0.6385 |
-| **RWM-U Ensemble** (trajectory-aware) | — | 0.8678 | 0.8417 | **0.7436** | **0.3070** |
+| **RWM-U Ensemble** (trajectory-aware) | — | 0.8678 | 0.8417 | **0.7436** | 0.3070 |
 | **z_t probe** (stochastic state) | 0.9341 | 0.8467 | — | 0.6669 | 0.3304 |
+| **Within-balance check** (confound test) | — | — | — | — | **0.5060** |
 
-The RWM-U ensemble is properly implemented: each model runs through the full observation trajectory in lockstep, building its own h_t from the sequence. This matches the RWM-U methodology directly.
+† Set C Strong is confounded: C1 is balance h_t, C2 is swingup h_t — two populations with different trajectory histories regardless of uncertainty. The within-balance check (both groups from balance, same task identity) collapses to 0.51, confirming the 0.72 was task identity detection. The reliable contrastive result is Set C (KL-matched).
 
 - **Sets A and B**: probe and ensemble are essentially tied (within 0.5%). Equivalent on standard tests.
-- **Set C KL-matched**: ensemble slightly edges the probe (0.74 vs 0.72). With full trajectory context, a 3-model ensemble is marginally better at the controlled contrastive test.
-- **Set C Strong**: probe holds at 0.72, ensemble collapses to 0.31 — below chance, systematically inverted. The ensemble flags the novel balance states as uncertain (they look foreign, models disagree more), completely missing that the confused swingup states are the genuinely uncertain ones. It is doing novelty detection.
+- **Set C KL-matched**: ensemble slightly edges the probe (0.74 vs 0.72). The controlled contrastive result — same task, only confusion differs — and the reliable one.
+- **Set C Strong**: all methods compromised by the trajectory history confound. Retained for reference but not interpretable as a clean uncertainty result.
 
 ---
 
@@ -273,50 +274,63 @@ KL difference is now only 1 nat. Recon difference remains large (0.05 vs 0.47). 
 
 ## Strong Test — Genuinely Novel States (cartpole_balance)
 
-### Why this test is stronger
-
-The KL-matched Set C (above) used noisy versions of the same swingup task as C1. It controlled for KL magnitude but the novel states were still structurally similar to training data — same environment, same physics, just with Gaussian noise added.
-
-The strong test removes that entirely. C1 states come from `cartpole_balance` — a completely different task. The model was trained only on `cartpole_swingup`. In swingup, the pole starts hanging downward and must be swung up. In balance, the pole starts near vertical and must be kept there. The state distributions are entirely different: different position ranges, different velocity profiles, different typical trajectories.
-
-The model has never seen a single balance state. These are not "noisy swingup" — they are structurally foreign.
-
 ### Construction
 
 Novel states collected from `cartpole_balance` (20 episodes, 10,000 states):
 - Mean KL = 48.9 nats (vs swingup training mean of 13.5)
 - Mean recon = 7.4 (vs swingup training mean of 0.11)
 
-The model is deeply confused by balance states in general. But within balance, some states are handled better than others. We take the bottom 40% of recon within balance as C1 candidates — the model is coping *relative to how lost it is on this task*.
-
-Two groups after KL-matching (10 bins, C1 from balance bottom-40% recon, C2 from swingup top-40% recon):
+Two groups after KL-matching (C1 from balance bottom-40% recon, C2 from swingup top-40% recon):
 
 | Group | Source | Mean KL | Mean recon |
 |---|---|---|---|
 | C1 (novel, coping) | cartpole_balance | 33.42 ± 11.85 | 2.857 |
 | C2 (familiar, confused) | cartpole_swingup | 32.95 ± 11.07 | 0.945 |
 
-KL difference: 0.47 nats — essentially identical. 274 total states (137 per group).
-
-### Results
+### Initial results
 
 | Probe | Set C Strong AUROC |
 |---|---|
-| Probe A — KL → `h_t` | **0.7216** |
+| Probe A — KL → `h_t` | 0.7216 |
 | Probe B — rollout variance | 0.6035 |
 | Probe C — recon → `h_t` | 0.6385 |
 | RWM-U Ensemble (trajectory-aware) | 0.3070 |
-| `z_t` probe | **0.3304** |
+| `z_t` probe | 0.3304 |
 
-### What these numbers mean
+### The confound — and why these numbers cannot be trusted
 
-**Probe A 0.72:** The probe separates novel/coping from familiar/confused at 72% accuracy, even with matched KL. The signal is not KL magnitude — it is something in the trajectory-level context the GRU has accumulated.
+Set C Strong mixes two populations with different trajectory histories. C1 h_t vectors were accumulated over hundreds of balance observations. C2 h_t vectors were accumulated over hundreds of swingup observations. These two populations have different distributional fingerprints embedded in h_t regardless of uncertainty content — a probe detecting *task identity* would score above chance.
 
-**z_t 0.33:** `z_t` directly parameterises KL and has access to the full posterior distribution — it scores 0.33, below chance. The signal is not in the per-step uncertainty variables.
+There are two explanations for Probe A scoring 0.72 on Set C Strong:
+- **Explanation A (wanted):** The probe reads genuine internal confusion from h_t. The swingup states in C2 have h_t vectors that look like "the model has been struggling" because the GRU accumulated a history of high reconstruction errors.
+- **Explanation B (confound):** The probe detects that balance trajectory h_t vectors look different from swingup trajectory h_t vectors as a global distributional property — regardless of uncertainty.
 
-**RWM-U Ensemble 0.31:** The trajectory-aware ensemble — each model stepping through the full observation sequence in lockstep, building its own h_t — scores 0.31, below chance. It calls the novel balance states highly uncertain (they look foreign, models disagree) while the genuinely uncertain swingup states score low. It is detecting novelty, not uncertainty.
+The 0.72 is consistent with both. The set cannot distinguish them.
 
-This is the central result. On Sets A and B, the RWM-U ensemble and the probe are tied (0.87 vs 0.87, 0.84 vs 0.85). On the hardest test, the probe holds at 0.72 and the ensemble inverts to 0.31. The probe wins precisely because it reads from h_t — which has accumulated trajectory context about whether the model is coping — while the ensemble measures disagreement between models that were never trained to distinguish those two things.
+### Confound check — within-balance contrastive test
+
+To isolate the confound, a within-balance set is constructed: both C1 and C2 drawn from balance trajectories only. Same task identity throughout. Only confusion differs.
+
+| Group | Source | Mean KL | Mean recon |
+|---|---|---|---|
+| C1 (coping) | cartpole_balance (bottom 30% recon within KL bin) | 45.90 ± 19.78 | 3.121 |
+| C2 (confused) | cartpole_balance (top 30% recon within KL bin) | 46.24 ± 22.62 | 12.666 |
+
+400 total states (200 per group). KL gap: 0.34 nats. Both groups are balance h_t vectors — no task identity signal is available.
+
+**Result:**
+
+| Test set | C1 source | C2 source | Probe A AUROC |
+|---|---|---|---|
+| Set C (KL-matched) | swingup (low recon) | swingup (high recon) | **0.7227** — clean |
+| Set C Strong | balance (low recon) | swingup (high recon) | 0.7216 — confounded |
+| Within-balance (confound check) | balance (low recon) | balance (high recon) | **0.5060** — chance |
+
+`z_t` probe on within-balance: **0.4345** (below chance).
+
+**Interpretation:** Probe A collapses to 0.51 when both groups share the same task identity. The probe trained on swingup cannot detect within-balance confusion. The Set C Strong result of 0.72 was detecting task identity embedded in trajectory history, not genuine uncertainty generalisation across tasks.
+
+The clean result is Set C (KL-matched, within-swingup): **0.7227**. The main claim rests on that.
 
 ---
 
@@ -339,12 +353,14 @@ All four quarters score essentially the same (~0.87–0.90). The uncertainty sig
 
 `z_t` is the stochastic state — 1024-dimensional categorical logits that directly parameterise the KL divergence. We compare probes on both to see whether `h_t` is encoding anything beyond what `z_t` already contains.
 
-| Feature | Dims | Train held-out | Set A | Set C (KL-matched) | Set C Strong (novel task) |
+| Feature | Dims | Train held-out | Set A | Set C (KL-matched) | Set C Strong† |
 |---|---|---|---|---|---|
-| `h_t` | 256 | 0.9019 | 0.8632 | **0.7227** | **0.7216** |
-| `z_t` | 1024 | 0.9341 | 0.8467 | **0.6669** | **0.3304** |
+| `h_t` | 256 | 0.9019 | 0.8632 | **0.7227** | 0.7216 |
+| `z_t` | 1024 | 0.9341 | 0.8467 | **0.6669** | 0.3304 |
 
-`z_t` scores slightly higher on training held-out (expected — KL is computed directly from `z_t` logits). On the KL-matched Set C, `h_t` outperforms `z_t` (0.72 vs 0.67). On the hard Set C Strong test, the gap widens dramatically: `h_t` holds at 0.72 while `z_t` collapses to 0.33 — below chance, same direction as the ensemble inversion. The stochastic state carries no useful trajectory context; it only sees per-step uncertainty. The deterministic recurrent state is where the "coping vs confused" signal lives.
+† Set C Strong is confounded by trajectory history — see confound check section. Within-balance: h_t=0.51, z_t=0.43 (both chance).
+
+`z_t` scores slightly higher on training held-out (expected — KL is computed directly from `z_t` logits). On the KL-matched Set C, `h_t` outperforms `z_t` (0.72 vs 0.67). This is the clean comparison: same task, only confusion differs. The deterministic recurrent state carries more information about whether the model is coping than the stochastic state, even when KL is matched between groups.
 
 ---
 
@@ -375,26 +391,22 @@ The probe correctly identified which was which 72% of the time, despite matched 
 
 ---
 
-**Set C Strong — Internal confusion test (KL-matched, novel task vs confused swingup)**
-Probe A: 0.72 | z_t: 0.33 | RWM-U Ensemble: 0.31
+**Set C Strong — confounded, result retracted**
+Initial result: Probe A 0.72. Within-balance confound check: **0.51 (chance).**
 
-Novel states from `cartpole_balance` (never seen in training) paired against familiar swingup states where the model is confused. KL-matched so neither method can rely on KL magnitude.
+Set C Strong compared balance h_t vectors (C1) against swingup h_t vectors (C2). After hundreds of trajectory steps, those two populations have different distributional fingerprints in h_t regardless of uncertainty. A probe detecting task identity would score above chance.
 
-- C1: balance states — novel, model coping within that task (label 0)
-- C2: swingup states — familiar, model internally confused (label 1)
+The confound check ran both C1 and C2 from balance trajectories only — same task identity, only confusion differed. Probe A dropped to 0.51. The 0.72 was detecting trajectory distribution, not internal model confusion. The result is not interpretable as a generalisation claim.
 
-The ensemble scores 0.31 — below chance, backwards. It flags balance as uncertain (foreign inputs cause disagreement) and swingup as certain (familiar inputs cause agreement). It is detecting novelty, not confusion.
-
-The probe scores 0.72. It is detecting internal model confusion that is invisible to the ensemble.
-
-Note: if you run the ensemble on a pure OOD detection task (swingup vs balance, no KL-matching), the ensemble scores 0.94 — it is the right tool for that problem. The probe scores only 0.61 on the same task. **These are different signals and the right tool depends on the question being asked.**
+The ensemble result (0.31) is unaffected by this: it was already correctly characterised as novelty detection rather than confusion detection.
 
 ---
 
 **Bottom line:**
 - For detecting distributional shift (OOD detection): use the ensemble (0.94)
-- For detecting internal model confusion independent of input novelty: use the h_t probe (0.72 vs ensemble's 0.31 on the hard contrastive test)
-- h_t encodes something the ensemble cannot see — trajectory-level context about whether the model is coping
+- For detecting internal model confusion within a known task: use the h_t probe (0.72 on KL-matched Set C)
+- The probe does NOT generalise across tasks — within-balance test confirms it cannot detect confusion in a novel task it was not trained on
+- h_t encodes coping vs confused within the training distribution; whether that signal transfers to genuinely novel tasks remains open
 
 ---
 
@@ -403,11 +415,14 @@ Note: if you run the ensemble on a pure OOD detection task (swingup vs balance, 
 | Criterion | Threshold | Result | |
 |---|---|---|---|
 | Probe A Set A AUROC | > 0.72 | **0.8632** | PASS ✓ |
-| Probe A Set C AUROC | > 0.63 | **0.7227** (KL-matched) / **0.7216** (strong) | PASS ✓ |
+| Probe A Set C AUROC (KL-matched) | > 0.63 | **0.7227** | PASS ✓ |
+| Probe A within-balance (confound check) | > 0.55 | **0.5060** | FAIL — does not generalise across tasks |
 
-**POSITIVE RESULT — signal exists. Phase 2 and 3 are justified.**
+**POSITIVE RESULT — signal exists within the training task. Phase 2 is justified.**
 
-`h_t` linearly encodes internal model uncertainty at the XS scale. The signal holds on fresh ID data (0.86), noisy OOD (0.85), KL-matched contrastive (0.72), and the hard internal-confusion test (0.72). The probe's advantage over the RWM-U ensemble is specific: on standard uncertainty detection they are tied, but on the internal confusion test the ensemble inverts to 0.31 while the probe holds. The signal in h_t is trajectory-level context about whether the model is coping — not input strangeness, not KL magnitude, and not something visible to cross-model disagreement.
+`h_t` linearly encodes internal model uncertainty at the XS scale within the training distribution. The signal holds on fresh ID data (0.86), noisy OOD (0.85), and the KL-matched contrastive test (0.72). The Set C Strong result (0.72) was retracted after a within-balance confound check showed it was detecting trajectory distribution, not confusion — within-balance collapses to 0.51.
+
+The scope of the claim is now narrower but cleaner: the probe detects whether the model is coping or confused within the task it was trained on. Cross-task generalisation was not demonstrated.
 
 The natural next question (Phase 2): does this signal persist and propagate forward in time — can the model's uncertainty at step T predict what will go wrong at step T+10?
 
@@ -423,7 +438,7 @@ The natural next question (Phase 2): does this signal persist and propagate forw
 
 **The h_t vs z_t comparison is mechanistically decisive.** `z_t` directly parameterises KL and has access to the full per-step posterior distribution. It still collapses to 0.33 on Set C Strong. `h_t` holds at 0.72. The signal is not in the per-step stochastic variable — it is in the recurrent trajectory context accumulated by the GRU. That is a mechanistic finding.
 
-**The ensemble implementation is not the explanation.** The RWM-U ensemble was correctly implemented — each model steps through the full observation sequence in lockstep, building its own `h_t` from scratch. The 0.31 is not an artefact of a broken baseline. It is a genuine methodological limitation of disagreement-based methods.
+**The ensemble implementation is not the explanation.** The RWM-U ensemble was correctly implemented — each model steps through the full observation sequence in lockstep, building its own `h_t` from scratch. The 0.31 on Set C Strong is not an artefact of a broken baseline. It is a genuine methodological limitation of disagreement-based methods — though note the Set C Strong result itself is now retracted as confounded.
 
 ---
 
