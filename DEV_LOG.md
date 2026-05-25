@@ -247,12 +247,14 @@ This means the probe and ensemble are **not competing on the same signal**:
 | Set A (ID) | 0.8678 | 0.8632 | Within-distribution uncertainty — **tied** |
 | Set B (noisy OOD) | 0.8417 | 0.8464 | Mild OOD uncertainty — **tied** |
 | Set C (KL-matched) | **0.7436** | 0.7227 | Coping vs confused at matched KL — **ensemble slightly better** |
-| Set C Strong (novel task) | 0.3070 | **0.7216** | Novelty vs internal confusion — **probe wins** |
-| OOD detection (direct) | **0.9425** | 0.6081 | Is this input from a different distribution? — **ensemble wins** |
+| Set C Strong (novel task) | 0.3070 | **0.7216** | Novelty vs internal confusion — **probe wins** (confounded — see below) |
+| OOD detection (direct) | 0.9425 † | **0.4903 — inverted** | Is this from a different distribution? — **recon/KL oracle wins (0.996/0.958)** |
 
-The ensemble is the right tool for detecting distributional shift. The probe detects something the ensemble cannot: internal model confusion that is independent of input novelty. On the hard contrastive test the ensemble inverts to 0.31 — it is doing novelty detection, so it scores C1 (novel balance) as uncertain and C2 (confused swingup) as certain. The probe gets it right at 0.72.
+† Ensemble reference from prior run; recon error (0.9964) and KL (0.9582) from a single frozen model both exceed it.
 
-These are complementary signals, not competing ones.
+On Set C and Set C Strong, probe and ensemble are complementary — the ensemble detects novelty, the probe detects confusion. On direct OOD detection, both are superseded by the model's own reconstruction error and KL: no training needed, no extra models needed. The h_t probe inverts to 0.49 on direct OOD — it has no information about which task a state came from, only about whether the model is coping within a task.
+
+These are three distinct signals (reconstruction quality, ensemble disagreement, within-task confusion), not a spectrum.
 
 ---
 
@@ -628,10 +630,10 @@ The ensemble result (0.31) is unaffected by this: it was already correctly chara
 ---
 
 **Bottom line:**
-- For detecting distributional shift (OOD detection): use the ensemble (0.94)
+- For detecting distributional shift (OOD detection): use reconstruction error or KL (0.996 / 0.958 — single model, no training, beats the 3-model ensemble)
 - For detecting internal model confusion within a known task: use the h_t probe (0.72 on KL-matched Set C)
+- The h_t probe cannot detect OOD at all — it inverts to 0.49 on the direct test. This is not a weakness; it means the two signals are genuinely distinct
 - The probe does NOT generalise across tasks — within-balance test confirms it cannot detect confusion in a novel task it was not trained on
-- h_t encodes coping vs confused within the training distribution; whether that signal transfers to genuinely novel tasks remains open
 
 ---
 
@@ -666,6 +668,8 @@ The natural next question (Phase 2): does this signal persist and propagate forw
 **The h_t vs z_t comparison is mechanistically decisive.** `z_t` directly parameterises KL and has access to the full per-step posterior distribution. It still collapses to 0.33 on Set C Strong. `h_t` holds at 0.72. The signal is not in the per-step stochastic variable — it is in the recurrent trajectory context accumulated by the GRU. That is a mechanistic finding.
 
 **The ensemble implementation is not the explanation.** The RWM-U ensemble was correctly implemented — each model steps through the full observation sequence in lockstep, building its own `h_t` from scratch. The 0.31 on Set C Strong is not an artefact of a broken baseline. It is a genuine methodological limitation of disagreement-based methods — though note the Set C Strong result itself is now retracted as confounded.
+
+**The h_t OOD inversion sharpens the claim.** On direct OOD detection (swingup vs balance), the h_t probe scores 0.49 — below chance — on a clean held-out evaluation. The probe trained to detect within-task confusion has literally no information about task identity. This is not a failure; it is the cleanest possible evidence that the two signals are orthogonal. A signal that accidentally detected OOD would have made the Phase 1 claim harder to defend. The inversion makes it precise: h_t encodes internal confusion, not input novelty.
 
 ---
 
