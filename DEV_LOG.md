@@ -214,25 +214,28 @@ The high Set A score (0.95) confirms the probe and methodology are working corre
 
 #### What the ensemble and probe are each good at
 
-Running all signals on the same OOD detection task (ID swingup = 0, OOD balance = 1). Full results in the "Direct OOD Detection" section below; summary here:
+Running all signals on the same OOD detection task (ID swingup = 0, OOD balance = 1). Full results in the "Direct OOD Detection" section below; summary here (corrected evaluation — held-out swingup states only, no leakage):
 
 | Method | OOD Detection AUROC |
 |---|---|
-| Recon error (single model, no training) | **0.9985** |
-| KL directly (oracle) | **0.9560** |
-| RWM-U Ensemble | 0.9425 |
-| h_t probe (swingup-trained) | 0.7636 |
-| mean(n_t) raw (no training) | 0.6910 |
-| Probe A earlier estimate | 0.6081 |
+| Recon error (single model, no training) | **0.9964** |
+| KL directly (oracle) | **0.9582** |
+| RWM-U Ensemble | 0.9425 † |
+| z_t probe (stochastic state, 1024-dim) | **0.8988** |
+| mean(\|n_t\|) raw (no training) | 0.6959 |
+| h_t probe | **0.4903** — inverted |
 
-The reconstruction error from a single model, computed with no training, exceeds the three-model ensemble. This is the key finding of the OOD detection sweep. The h_t probe at 0.76 beats the 0.61 from within-task tests — direct OOD is easier because h_t encodes task identity in addition to confusion.
+† Ensemble is from a prior run with different collection; included as reference only.
+
+Key finding: the h_t probe **inverts** (0.49, below chance) on direct OOD detection when evaluated cleanly. The probe detects within-task confusion (0.72 on KL-matched Set C) but cannot detect that a state is from a different task — those are different signals. The stochastic state z_t probe at 0.90 confirms that the categorical posterior distribution changes enough between tasks to be directly detectable.
 
 This means the probe and ensemble are **not competing on the same signal**:
 
 | Signal | Best method | AUROC |
 |---|---|---|
-| Input is OOD (never seen in training) | Recon error / KL oracle | **0.999 / 0.956** |
-| Cross-model disagreement baseline | RWM-U Ensemble | **0.943** |
+| Input is OOD (never seen in training) | Recon / KL oracle | **0.996 / 0.958** |
+| Posterior state shifts between tasks | z_t probe | **0.899** |
+| Cross-model disagreement baseline | RWM-U Ensemble | **0.943** † |
 | Model is internally confused on this trajectory | h_t Probe A | **0.72** (Set C KL-matched) |
 
 ---
@@ -482,72 +485,77 @@ Balance is evaluated by the frozen swingup model — it has never been trained o
 
 ### Results
 
+Corrected evaluation: probes trained on 60% of swingup, evaluated on the held-out 40% (no leakage). Real z_t (posterior stochastic state, 1024-dim) added and clearly distinguished from GRU gates.
+
 **Unsupervised raw scalars (no training needed):**
 
 | Signal | AUROC |
 |---|---|
-| Recon error | **0.9985** |
-| KL | **0.9560** |
-| mean(\|n_t\|) — candidate gate magnitude | **0.6910** |
-| std(z_t) — update gate variance | **0.6813** |
-| \|\|h_t\|\| — recurrent state norm | 0.6381 |
-| mean(r_t) — reset gate mean | 0.5390 |
-| std(r_t) | 0.4998 |
-| \|\|Δh_t\|\| | 0.4753 |
-| mean(z_t) | 0.3556 |
+| Recon error | **0.9964** |
+| KL | **0.9582** |
+| mean(\|n_t\|) — candidate gate magnitude | 0.6959 |
+| std(z_gate) — update gate variance | 0.6714 |
+| \|\|h_t\|\| — recurrent state norm | 0.6285 |
+| mean(r_gate) | 0.5488 |
+| std(r_gate) | 0.5230 |
+| \|\|Δh_t\|\| | 0.4703 |
+| mean(z_gate) | 0.3759 |
 
 **Probe-based (trained on swingup KL labels, score used as OOD detector):**
 
-| Signal | AUROC |
-|---|---|
-| h_t probe | **0.7636** |
-| r_t probe | 0.7484 |
-| n_t probe | 0.7366 |
-| Δh_t probe | 0.5919 |
-| z_t probe | 0.5309 |
+| Signal | Feature | AUROC |
+|---|---|---|
+| z_t probe | 1024-dim posterior stochastic state | **0.8988** |
+| n_gate probe | 256-dim GRU candidate gate | 0.7367 |
+| r_gate probe | 256-dim GRU reset gate | 0.7151 |
+| Δh_t probe | 256-dim | 0.5492 |
+| z_gate probe | 256-dim GRU update gate | 0.5219 |
+| h_t probe | 256-dim recurrent state | **0.4903 — inverted** |
 
 **Distribution shift between tasks:**
 
 | Feature | Swingup mean | Balance mean | Ratio |
 |---|---|---|---|
-| recon | 0.1654 | 7.6769 | **46.4×** |
-| KL | 21.07 | 51.84 | 2.46× |
-| z_gate mean | 0.9381 | 0.9352 | 1.00× |
-| r_gate mean | 0.5412 | 0.5453 | 1.01× |
-| \|\|Δh_t\|\| | 0.3274 | 0.3219 | 0.98× |
+| recon | 0.1780 | 6.9045 | **38.8×** |
+| KL | 21.09 | 49.75 | 2.36× |
+| z_gate mean | 0.9381 | 0.9359 | 1.00× |
+| r_gate mean | 0.5414 | 0.5446 | 1.01× |
+| \|\|Δh_t\|\| | 0.3259 | 0.3167 | 0.97× |
 
 ### What These Numbers Mean
 
-**Reconstruction error beats the ensemble (0.9985 vs 0.9425).** A single scalar, from a single model, with no training overhead, exceeds the three-model ensemble on direct OOD detection. The distribution shift table explains why: reconstruction error has a 46× mean gap between tasks. The balance observations are so far outside the swingup training distribution that the decoder simply cannot reconstruct them. This is the cleanest OOD signal in the entire experiment.
+**Reconstruction error and KL both beat the ensemble (0.9964, 0.9582 vs 0.9425).** Single scalars, computed at inference time with no training overhead. The distribution shift table explains why: reconstruction error has a 38.8× mean gap between tasks (balance observations are far outside the swingup decoder's training distribution). KL has a 2.36× gap. Both exceed the three-model ensemble as OOD detectors on direct test.
 
-**KL also beats the ensemble (0.9560).** KL has a 2.46× gap between tasks, which is smaller but still highly discriminative. Both recon and KL are oracle signals — they are computed at inference time and require no additional training beyond the world model itself.
+**z_t probe (stochastic state) reaches 0.90.** The 1024-dim posterior stochastic state — the variable that directly parameterises the KL — changes dramatically between tasks. A probe trained on swingup KL labels can use z_t to detect balance states as high-KL with high accuracy. This makes mechanistic sense: z_t encodes which categorical classes are active, and balance activates entirely different patterns.
 
-**Gate signals work without training (0.69).** mean(|n_t|) and std(z_t) reach 0.69 and 0.68 respectively as unsupervised scalars. This is above the h_t probe estimate from earlier within-task tests (0.61) and requires zero training. The candidate gate magnitude and update gate variance show detectable differences between the two tasks even though the mean gate activations (mean(z_t), mean(r_t)) are nearly identical across tasks (1.0× ratio).
+**h_t probe inverts to 0.49 on clean evaluation.** With no leakage, the h_t probe cannot detect OOD — it scores just below chance. This confirms that the probe detects within-task confusion (0.72 on Set C) but not task identity. The h_t decision boundary trained on swingup KL labels does not generalise to separate swingup h_t from balance h_t. The 0.76 from the first run was entirely data leakage (swingup OOD pool included the probe's own training states).
 
-**Gates and Δh_t have near-zero mean shift between tasks.** The distribution shift table shows that mean(z_t), mean(r_t), and ||Δh_t|| have essentially the same mean across tasks (1.00–1.01× ratio). These signals were only useful in contrastive within-task settings. In the direct OOD setting, they carry almost no between-task information — consistent with why ||Δh_t|| inverts (0.4753).
+**Gate signals work without training (0.67–0.70).** mean(|n_t|) and std(z_gate) reach 0.70 and 0.67 as unsupervised scalars. These are the second-tier signals — no training needed, above the oracle-free probe tier.
 
-**The h_t probe improves from 0.61 to 0.76 in direct OOD.** In the within-task contrastive test (swingup only), the h_t probe scored 0.61. In direct OOD it scores 0.76 — not because the probe improved, but because h_t encodes task identity as well as confusion. The probe's decision boundary learned on swingup KL labels happens to partially separate the swingup vs balance h_t manifolds.
-
-**mean(z_t) is deeply inverted (0.36).** Fully consistent with the gate analysis: z_t slightly decreases at higher KL, and balance mean(z_t) = 0.9352 ≈ swingup mean(z_t) = 0.9381. As a raw scalar it carries no OOD information.
+**Gates and Δh_t have near-zero mean shift between tasks.** mean(z_gate), mean(r_gate), and ||Δh_t|| have essentially the same mean across tasks (ratio 0.97–1.01×). These signals only separated states within a task when KL was matched; in the direct OOD setting they carry almost no between-task discriminative information.
 
 ### Gap to Ensemble
 
-| Best raw signal | Best probe | Ensemble |
+| Best raw signal | Best probe | Ensemble † |
 |---|---|---|
-| Recon: **0.9985** (+0.056 above ensemble) | h_t: **0.7636** (−0.179 below ensemble) | 0.9425 |
+| Recon: **0.9964** (+0.054 above) | z_t (stochastic): **0.8988** (−0.044 below) | 0.9425 |
 
-The gap to ensemble is closed (and exceeded) by the oracle signals. The non-oracle signals (gate-based, probes) still fall 0.18–0.25 below ensemble. If oracle access to recon or KL is acceptable, a single model already beats the three-model ensemble. If not — if the goal is an unsupervised OOD signal from internal activations without decoder access — the gate signals (0.69) and h_t probe (0.76) are the best available.
+† Ensemble is from a prior run with trajectory-aware evaluation; not directly comparable.
+
+The oracle signals exceed the ensemble reference. The best non-oracle signal (z_t probe at 0.90) is close to the ensemble. Gate raw signals at 0.67–0.70 and the h_t probe at 0.49 establish the floor for internal activation signals.
 
 ### Interpretation
 
-The direct OOD test reveals that the model's own outputs (KL, recon) are far more informative than its internal activations (gates, derivatives) for the task of detecting whether the input is from a different distribution. The hard contrastive experiments were testing something the outputs already cannot do (within-task confusion with matched KL), which is why internal signals looked relatively competitive there.
+For OOD detection, the signal hierarchy from this experiment is:
 
-For practical OOD detection, the hierarchy is:
-1. Reconstruction error — 0.9985, beats ensemble, zero training
-2. KL — 0.9560, beats ensemble, zero training
-3. h_t probe — 0.7636, requires swingup training data
-4. Gate scalars (mean(|n_t|), std(z_t)) — 0.68–0.69, no training
-5. Gate probes (r_t, n_t) — 0.74–0.75, requires training
+1. **Reconstruction error** — 0.9964, beats ensemble, zero training, single model
+2. **KL** — 0.9582, beats ensemble, zero training
+3. **z_t probe (stochastic state)** — 0.8988, requires swingup training data; z_t changes so dramatically between tasks that the probe detects this directly
+4. **Gate scalars** (mean(|n_t|), std(z_gate)) — 0.67–0.70, no training
+5. **Gate probes** (r_gate, n_gate) — 0.72–0.74, requires training
+6. **h_t probe** — **0.49, inverted** — cannot detect OOD; h_t encodes within-task confusion, not task identity
+
+The h_t inversion is the clearest finding: the probe trained to detect confusion within swingup makes random predictions when asked about task membership. This is the cleanest evidence that the confusion signal in h_t and the OOD signal are distinct. Phase 2 (temporal propagation of the within-task confusion signal) can proceed without claiming h_t encodes anything about distribution shift.
 
 ---
 
@@ -641,7 +649,7 @@ The ensemble result (0.31) is unaffected by this: it was already correctly chara
 
 The scope of the claim is now narrower but cleaner: the probe detects whether the model is coping or confused within the task it was trained on. Cross-task generalisation was not demonstrated.
 
-**The direct OOD test adds a separate finding:** reconstruction error from a single frozen model (0.9985) and KL (0.9560) both exceed the three-model ensemble (0.9425) with zero training overhead. These are oracle signals computed at inference time. Internal activations (gates, probes) fall in the 0.69–0.76 range and do not close the gap to the oracle signals.
+**The direct OOD test adds a separate finding:** reconstruction error (0.9964) and KL (0.9582) from a single frozen model both exceed the ensemble reference (0.9425) with zero training. The h_t probe inverts to **0.49** on clean held-out evaluation — it cannot detect OOD. This sharpens the Phase 2 claim: the within-task confusion signal in h_t is distinct from distributional shift, not a weaker version of the same thing.
 
 The natural next question (Phase 2): does this signal persist and propagate forward in time — can the model's uncertainty at step T predict what will go wrong at step T+10?
 

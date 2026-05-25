@@ -52,7 +52,7 @@ def collect_with_gates(model, env, n_episodes, cfg):
     device = next(model.parameters()).device
     model.eval()
     gru = model.rssm.gru
-    all_h, all_z_gate, all_r_gate, all_n_gate = [], [], [], []
+    all_h, all_z_state, all_z_gate, all_r_gate, all_n_gate = [], [], [], [], []
     all_kl, all_recon = [], []
     all_traj_id, all_step_idx = [], []
 
@@ -75,6 +75,7 @@ def collect_with_gates(model, env, n_episodes, cfg):
                 kl_val    = model.rssm.kl_divergence(post_l, prior_l, free_bits=0.0).item()
                 recon_val = F.mse_loss(dec, obs_t, reduction='none').sum().item()
                 all_h.append(h.squeeze(0).cpu().numpy().copy())
+                all_z_state.append(z.squeeze(0).cpu().numpy().copy())   # posterior stochastic z_t
                 all_z_gate.append(z_gate.squeeze(0).cpu().numpy().copy())
                 all_r_gate.append(r_gate.squeeze(0).cpu().numpy().copy())
                 all_n_gate.append(n_gate.squeeze(0).cpu().numpy().copy())
@@ -88,14 +89,15 @@ def collect_with_gates(model, env, n_episodes, cfg):
             print(f"    ep {ep+1}/{n_episodes}")
 
     data = {
-        'h':          np.array(all_h,       dtype=np.float32),
-        'z_gate':     np.array(all_z_gate,  dtype=np.float32),
-        'r_gate':     np.array(all_r_gate,  dtype=np.float32),
-        'n_gate':     np.array(all_n_gate,  dtype=np.float32),
-        'kl':         np.array(all_kl,      dtype=np.float32),
-        'recon':      np.array(all_recon,   dtype=np.float32),
-        'traj_id':    np.array(all_traj_id, dtype=np.int32),
-        'step_index': np.array(all_step_idx,dtype=np.int32),
+        'h':          np.array(all_h,        dtype=np.float32),
+        'z_state':    np.array(all_z_state,  dtype=np.float32),  # 1024-dim posterior stochastic
+        'z_gate':     np.array(all_z_gate,   dtype=np.float32),
+        'r_gate':     np.array(all_r_gate,   dtype=np.float32),
+        'n_gate':     np.array(all_n_gate,   dtype=np.float32),
+        'kl':         np.array(all_kl,       dtype=np.float32),
+        'recon':      np.array(all_recon,    dtype=np.float32),
+        'traj_id':    np.array(all_traj_id,  dtype=np.int32),
+        'step_index': np.array(all_step_idx, dtype=np.int32),
     }
     # Add Δh_t for step >= 2
     step = data['step_index']
@@ -125,28 +127,31 @@ def main():
     print(f"  {len(bal['h'])} steps | KL={bal['kl'].mean():.1f} | "
           f"recon={bal['recon'].mean():.3f}")
 
-    # ── Build OOD dataset: swingup=0, balance=1 ──
-    # Downsample swingup to match balance size for balanced evaluation
-    rng = np.random.default_rng(42)
-    n_bal = len(bal['h'])
-    sw_idx = rng.choice(len(sw['h']), n_bal, replace=False)
-
-    def pool(key):
-        return np.concatenate([sw[key][sw_idx], bal[key]])
-
-    ood_labels = np.array([0]*n_bal + [1]*n_bal, dtype=np.int32)
-
-    # ── Train probes on FULL swingup with KL labels ──
+    # ── Train probes on 60% of swingup with KL labels ──
+    # Split BEFORE building OOD pool so evaluation swingup states are held-out.
     print("\nTraining probes on swingup KL labels...")
     y_sw   = binarise_by_median(sw['kl'])
     tr_idx, te_idx = train_test_split(
         np.arange(len(sw['h'])), test_size=0.40, stratify=y_sw, random_state=0)
 
     probes = {}
-    for name, feat in [('h', 'h'), ('dh', 'dh'), ('z_gate', 'z_gate'),
-                       ('r_gate', 'r_gate'), ('n_gate', 'n_gate')]:
+    for name, feat in [('h', 'h'), ('dh', 'dh'), ('z_state', 'z_state'),
+                       ('z_gate', 'z_gate'), ('r_gate', 'r_gate'), ('n_gate', 'n_gate')]:
         clf, sc = train_probe(sw[feat][tr_idx], y_sw[tr_idx])
         probes[name] = (clf, sc)
+
+    # ── Build OOD dataset: swingup=0, balance=1 ──
+    # Use only held-out swingup states (te_idx) to avoid probe training data leakage.
+    rng = np.random.default_rng(42)
+    n_bal = len(bal['h'])
+    n_te = len(te_idx)
+    sw_ood_idx = te_idx[rng.choice(n_te, min(n_bal, n_te), replace=False)]
+
+    def pool(key):
+        return np.concatenate([sw[key][sw_ood_idx], bal[key]])
+
+    n_sw_ood = len(sw_ood_idx)
+    ood_labels = np.array([0]*n_sw_ood + [1]*n_bal, dtype=np.int32)
 
     def probe_ood_auc(name, feat):
         clf, sc = probes[name]
@@ -173,18 +178,19 @@ def main():
 
     raw_aucs  = {k: raw_ood_auc(v) for k, v in raw_signals.items()}
     probe_aucs = {
-        'h_t probe':     probe_ood_auc('h',      'h'),
-        'Δh_t probe':    probe_ood_auc('dh',     'dh'),
-        'z_t probe':     probe_ood_auc('z_gate', 'z_gate'),
-        'r_t probe':     probe_ood_auc('r_gate', 'r_gate'),
-        'n_t probe':     probe_ood_auc('n_gate', 'n_gate'),
+        'h_t probe':      probe_ood_auc('h',       'h'),
+        'Δh_t probe':     probe_ood_auc('dh',      'dh'),
+        'z_t probe (stochastic)': probe_ood_auc('z_state', 'z_state'),
+        'z_gate probe':   probe_ood_auc('z_gate',  'z_gate'),
+        'r_gate probe':   probe_ood_auc('r_gate',  'r_gate'),
+        'n_gate probe':   probe_ood_auc('n_gate',  'n_gate'),
     }
 
     # ── Print ──
     print("\n" + "="*60)
     print("DIRECT OOD DETECTION: swingup (0) vs balance (1)")
     print("="*60)
-    print(f"\nBaselines:  Ensemble (RWM-U) = 0.9425 | h_t probe = 0.6081\n")
+    print(f"\nBaseline:  Ensemble (RWM-U) = 0.9425  [from prior run, trajectory-aware]\n")
 
     print("--- Unsupervised (no training needed) ---")
     for k, v in sorted(raw_aucs.items(), key=lambda x: -x[1]):
