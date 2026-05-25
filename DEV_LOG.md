@@ -654,6 +654,72 @@ All four quarters score essentially the same (~0.87–0.90). The uncertainty sig
 
 ---
 
+## Phase 2 Pilot — Temporal Prediction
+
+### Motivation
+
+Phase 1 established that the probe detects within-task confusion at the current step (AUROC 0.72, Set C). Phase 2 asks whether this signal has predictive validity: does probe(h_t) at step t carry information about confusion at step t+k in a real trajectory, beyond what the current confusion level already tells you?
+
+Three experiments run on the 100K training-phase trajectories (200 episodes × 500 steps).
+
+### Experiment 1 & 3 — Real trajectory prediction
+
+For each held-out state at step t, find step t+k in the same trajectory. Predict KL(t+k) using (a) probe(h_t) alone, (b) KL(t) alone, (c) KL(t) + probe(h_t). Report Pearson r and R². The key metric is **ΔR²**: how much variance probe adds on top of KL autocorrelation.
+
+| k | N pairs | r(probe, KL_{t+k}) | r(KL_t, KL_{t+k}) | R²(KL_t) | R²(+probe) | ΔR² |
+|---|---|---|---|---|---|---|
+| 1  | 39,925 | +0.719 | +0.876 | 0.768 | 0.784 | +0.016 |
+| 3  | 39,762 | +0.724 | +0.875 | 0.766 | 0.783 | +0.017 |
+| 5  | 39,610 | +0.721 | +0.866 | 0.750 | 0.769 | +0.018 |
+| 10 | 39,239 | +0.716 | +0.842 | 0.708 | 0.731 | +0.023 |
+| 20 | 38,429 | +0.700 | +0.780 | 0.608 | 0.645 | **+0.037** |
+
+R² decay curve (probe alone vs KL alone):
+
+| k | R²(probe) | R²(KL_t) | probe − KL |
+|---|---|---|---|
+| 1  | 0.517 | 0.768 | −0.251 |
+| 5  | 0.519 | 0.750 | −0.231 |
+| 10 | 0.512 | 0.708 | −0.196 |
+| 20 | 0.490 | 0.608 | **−0.118** |
+
+The probe also slightly edges KL for predicting future recon at k=10 and k=20 (r≈+0.119 vs +0.091).
+
+### Experiment 2 — Observation-vs-imagination boundary
+
+Does probe(h_t_real) predict prior entropy after one imagination step?
+
+| Signal | r with depth-1 prior entropy | R² | ΔR² |
+|---|---|---|---|
+| KL(t) alone | +0.310 | 0.096 | — |
+| probe(h_t) alone | +0.297 | — | — |
+| KL(t) + probe(h_t) | — | 0.108 | +0.011 |
+
+The probe predicts imagination quality at depth 1 beyond what KL alone explains.
+
+### What These Numbers Mean
+
+**KL is strongly autocorrelated.** At k=1, r(KL_t, KL_{t+1}) = +0.876 — if the model is confused now, it will be confused at the next step. This is expected: episodes have continuous dynamics. The probe (r≈+0.72) is a weaker predictor than raw KL at every lag because it is a compressed, noisy version of KL.
+
+**The probe's R² is flat while KL's decays.** R²(probe alone) stays at 0.49–0.52 across all k from 1 to 20. R²(KL alone) decays from 0.77 to 0.61. The gap between them narrows from 0.251 at k=1 to 0.118 at k=20. The probe encodes something in h_t's trajectory history that persists while scalar KL autocorrelation fades.
+
+**ΔR² grows with k.** At k=1, the probe adds +0.016 R² on top of KL autocorrelation. At k=20, it adds +0.037 — more than double. At k=20, the probe is responsible for approximately 6% of explained variance beyond the KL baseline (0.037 / 0.608). The further ahead you look, the more the probe contributes relative to just using current KL.
+
+**Experiment 2: marginal early-warning signal.** r(probe, depth1_entropy) = +0.30, ΔR² = +0.011. The probe predicts how uncertain the model's next imagined step will be at roughly the same level as KL itself. This is consistent — if h_t contains a confusion signal, it should predict both the current KL and the quality of the next imagination step.
+
+### Interpretation
+
+The probe carries genuine temporal predictive information about future confusion in real trajectories. It is not merely a noisier KL value — its relative contribution increases at longer horizons. At k=20, the ΔR² of +0.037 is the cleanest Phase 2 result available at XS scale.
+
+**What this means and does not mean:**
+- It means: h_t encodes trajectory-level confusion context that extends the predictive horizon. Knowing h_t at step t gives you more than just knowing KL(t) when predicting confusion at t+20.
+- It does not mean: the probe is the best predictor of future confusion. KL alone explains more variance at every lag. The probe adds information, not replaces.
+- For an early-warning system: the useful framing is not "replace KL with probe" but "condition on both h_t and KL_t for longer-horizon confusion prediction."
+
+**Phase 2 go/no-go:** Positive. The ΔR² curve (growing from +0.016 to +0.037) is the temporal structure result in miniature. Phase 2 at full scale would test whether this curve is deeper and the signal larger on a 200M model with richer trajectories.
+
+---
+
 ## Results in Plain English
 
 **Set A — Normal data, fresh rollout**
@@ -716,7 +782,7 @@ The scope of the claim is now narrower but cleaner: the probe detects whether th
 
 **The direct OOD test adds a separate finding:** reconstruction error (0.9964) and KL (0.9582) from a single frozen model both exceed the ensemble reference (0.9425) with zero training. The h_t probe inverts to **0.49** on clean held-out evaluation — it cannot detect OOD. This sharpens the Phase 2 claim: the within-task confusion signal in h_t is distinct from distributional shift, not a weaker version of the same thing.
 
-The natural next question (Phase 2): does this signal persist and propagate forward in time — can the model's uncertainty at step T predict what will go wrong at step T+10?
+**Phase 2 pilot result (from real trajectories):** probe(h_t) adds ΔR² = +0.037 on top of KL autocorrelation at k=20 — a growing contribution as the prediction horizon increases. The probe's R² stays flat (0.49–0.52) while KL's decays (0.77→0.61). Phase 2 is confirmed positive at XS scale. The next question is whether this signal is larger and more structured at 200M parameter scale.
 
 ---
 
