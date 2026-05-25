@@ -334,6 +334,42 @@ The clean result is Set C (KL-matched, within-swingup): **0.7227**. The main cla
 
 ---
 
+## Δh_t Probe — Is the Confusion Signal in the Dynamics?
+
+### Motivation
+
+The within-balance confound check confirmed that h_t position is task-specific — the swingup confusion boundary does not transfer. But h_t values are accumulated trajectory history. The GRU update rule is not task-specific. The question: does **Δh_t = h_t − h_{t−1}** — the update the GRU applied at each step — encode confusion in a task-agnostic way?
+
+When the model is confused (high KL), it received a surprising observation and the GRU should correct more. When coping (low KL), smaller correction needed. If this is true, ||Δh_t|| alone would be a proxy for confusion — and a probe on Δh_t would transfer across tasks.
+
+### Results
+
+Probe trained on swingup Δh_t with KL labels. Tested on within-swingup and within-balance (both groups same task identity, no task signal available).
+
+| Test | h_t probe | Δh_t probe | \|\|Δh_t\|\| (raw norm) |
+|---|---|---|---|
+| Swingup held-out (ID) | 0.9027 | 0.7049 | 0.4525 |
+| Within-swingup (KL-matched) | 0.5842 | **0.7333** | 0.6317 |
+| Within-balance ← key test | 0.5166 | 0.5725 | **0.3730** |
+
+Correlations: swingup ||Δh_t|| vs KL = −0.025 (near zero), balance ||Δh_t|| vs KL = 0.22 (weak), balance ||Δh_t|| vs recon = −0.09 (slightly negative).
+
+### What These Numbers Mean
+
+**Δh_t > h_t within-swingup (0.73 vs 0.58):** The update vector carries more information about current confusion than the accumulated state. Δh_t captures what just happened; h_t captures everything. For detecting confusion at a specific step, recency matters more.
+
+**Δh_t does not transfer (0.57 within-balance):** Small improvement over h_t (0.52) but nowhere near signal. The directional pattern of confusion-updates in swingup h_t space does not match the pattern in balance h_t space. The direction the GRU moves when confused is task-specific.
+
+**||Δh_t|| is inverted in within-balance (0.37 — below chance):** Confused balance states (C2, high recon) have marginally *smaller* updates than coping states (C1). The recon–||Δh_t|| correlation is −0.09 in balance. The naive hypothesis — "confused = large update" — does not hold once KL is matched. In swingup, the correlation between ||Δh_t|| and KL is −0.025 (effectively zero), confirming update magnitude is not a reliable confusion signal in either task.
+
+### Interpretation
+
+The confusion signal is **directional and task-specific, not magnitude-based or task-agnostic.** The GRU learns particular directions in h_t space associated with swingup confusion — not a universal rule about update size. Those directions do not transfer to balance.
+
+This is an informative negative result. It rules out the simplest version of the "dynamics encode confusion" hypothesis. What remains open: whether a more abstract property of the update — not direction, not magnitude, but something about the *geometry* of how h_t moves near confusion events — could generalise. That would require a different formulation beyond a linear probe on Δh_t.
+
+---
+
 ## Per-Block Analysis — Where in h_t is the Signal?
 
 `h_t` is 256-dimensional. We split it into 4 quarters and test each independently to see if the signal is concentrated anywhere or spread uniformly.
