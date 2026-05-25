@@ -474,6 +474,69 @@ The cross-task signal that Δh_t was capturing is the directional content of r_t
 
 ---
 
+## Imagination Depth — Experiments 2 & 3
+
+### Motivation
+
+Set C (KL-matched, within-swingup) provides one line of evidence for the within-task confusion signal. Two experiments test it independently using a theoretically grounded ground truth: **imagination depth**. In DreamerV3, imagination rollouts run without observations — the model predicts forward using only its prior. Uncertainty should compound with each imagination step because each step uses a prior z sample rather than a posterior. If the probe tracks genuine model uncertainty, probe(h_t) should grow with imagination depth.
+
+Experiment 3 asks: does probe score increase monotonically with rollout depth?
+Experiment 2 asks: does the probe separate shallow imagination (depths 1–3, confident) from deep imagination (depths 13–15, confused)? This is a clean Set C Strong with zero task identity confound — all states are from swingup, the only variation is imagination depth.
+
+### Setup
+
+2000 starting states sampled from training_states.npz. Imagination rollouts of length 15 with random actions. Probe A trained on real KL labels (60% training split from training_states.npz, same setup as all other experiments). Probe evaluated on imagination h_t without retraining.
+
+### Results
+
+**Experiment 3 — probe score vs depth:**
+
+| Depth | Probe score | Prior entropy |
+|---|---|---|
+| 0 (real posterior) | 0.4990 (mean) | 0.9100 |
+| 1 | 0.7217 | 0.9790 |
+| 3 | 0.7186 | 0.9501 |
+| 6 | 0.7231 | 0.9483 |
+| 10 | 0.7291 | 0.9483 |
+| 15 | 0.7354 | 0.9491 |
+
+Pearson r (depth vs probe score): +0.50. Pearson r (prior entropy vs probe score): +0.78.
+
+The mean at depth 0 is 0.50 because the starting states are balanced 50/50 by KL (sampled from full training distribution). Breaking by starting KL:
+
+| | Depth 0 probe score | Depth 1 probe score | Change |
+|---|---|---|---|
+| High-KL starting states | 0.7557 | 0.8411 | +0.085 |
+| Low-KL starting states | 0.2274 | 0.5958 | +0.368 |
+
+Correlation of starting KL with probe score drops from r=+0.76 at depth 0 to r=+0.20 at depth 1.
+
+**Experiment 2 — shallow (1–3) vs deep (13–15) imagination:**
+
+| | C1 (depths 1–3) | C2 (depths 13–15) |
+|---|---|---|
+| Mean prior entropy | 0.9605 | 0.9489 |
+| Entropy gap | −0.012 (C2 is lower) | |
+| Probe AUROC | **0.4994** (chance) | |
+
+### What These Numbers Mean
+
+**The depth-0→1 jump is a real but misattributed finding.** The mean probe score appears to jump from 0.50 to 0.72 between depth 0 and depth 1. The 0.50 at depth 0 is not "random probe performance" — it reflects the 50/50 KL split of the starting states. The real pattern is that low-KL starting states (probe score 0.23 at depth 0) jump to 0.60 after one imagination step. One imagination step washes out the low-KL signal: the resulting h_t no longer looks like a coping real-observation state. The probe detects this correctly.
+
+**Prior entropy peaks at depth 1 and decreases.** Prior entropy at depth 0 is 0.91, jumps to 0.98 at depth 1, then drops to 0.95 and plateaus. The model's prior is most uncertain immediately after transitioning from posterior to prior mode (depth 1). With continued imagination under random actions, the GRU converges to a "typical confusion" state — it does not continue to compound uncertainty.
+
+**No monotonic growth after depth 1.** The probe score plateaus at 0.72–0.74 for all depths 1–15. The rise from depth 1 to depth 15 is only +0.014. Experiment 2 is chance (0.4994): the probe cannot distinguish shallow from deep imagination states. The prior entropy gap between C1 and C2 is −0.01 (inverted — deep imagination actually has slightly lower entropy than shallow).
+
+### Interpretation
+
+The imagination-depth hypothesis was wrong. Uncertainty does not compound monotonically in imagination at this scale and with random actions. Instead, the model has a characteristic "imagination confusion level" that it reaches within one step and then maintains.
+
+The probe detects the boundary between observation mode (posterior h_t) and imagination mode (prior h_t), but not the depth within imagination. This is mechanistically consistent with the GRU analysis: the GRU is a near-perfect overwriter (z_t ≈ 0.94) — it nearly completely replaces h_t at every step. Within one imagination step, h_t has been almost fully rewritten by prior-sampled information. Subsequent steps continue to rewrite it, but the level of uncertainty is already determined by the first imagination step, not by depth.
+
+**Implications for Phase 2.** The compounding-uncertainty story for imagination rollouts is not confirmed. Phase 2's temporal structure question needs to be asked about real rollouts (with observations), not imagination rollouts. The relevant question is: at step t in a real trajectory, does probe(h_t) predict what errors will occur at t+k? That is a different test from imagination depth.
+
+---
+
 ## Direct OOD Detection — All Signals
 
 ### Motivation
