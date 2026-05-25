@@ -415,7 +415,54 @@ Correlations: swingup ||c_t|| vs KL = −0.058 (near zero), balance ||c_t|| vs K
 
 Curvature adds nothing. The confusion signal that partially generalises is the direction of the most recent update — what the GRU just did in response to the last observation. That direction has a partial cross-task signature. The second-order structure (how much that direction changed) does not.
 
-What remains open: why does the direction of Δh_t have any cross-task signal at all at step ≥ 2? One hypothesis — the GRU update gate fires in similar activation patterns when surprised regardless of task, even though the resulting movement in h_t space is not perfectly aligned. This is at the limit of what a linear probe can answer.
+What remains open: why does the direction of Δh_t have any cross-task signal at all at step ≥ 2? Answered by the gate analysis below.
+
+---
+
+## GRU Gate Analysis — Mechanistic Confusion Signal
+
+### Motivation
+
+Δh_t partially transfers (0.68). The natural mechanistic explanation would be: when surprised (high KL), the GRU update gate z_t fires harder, updating more h_t dimensions — so z_t activity should be a cleaner confusion proxy. We extract all three GRU gates directly from the GRUCell weights and test each.
+
+```
+r_t = sigmoid(W_ir·x + W_hr·h + b_r)        reset gate     — how much of h_{t-1} to use for candidate
+z_t = sigmoid(W_iz·x + W_hz·h + b_z)        update gate    — how much of candidate vs h_{t-1} to take
+n_t = tanh(W_in·x + r_t ⊙ (W_hn·h + b_n))  candidate gate — proposed new h_t
+h_t = (1 − z_t) ⊙ h_{t-1} + z_t ⊙ n_t
+```
+
+### Results
+
+| Signal | Dims | SW held-out | Within-SW | Within-BAL ←key |
+|---|---|---|---|---|
+| h_t (position) | 256 | 0.9588 | 0.5991 | 0.5652 |
+| Δh_t (1st deriv) | 256 | 0.9581 | 0.5413 | 0.6766 |
+| z_t gate | 256 | 0.9646 | 0.5457 | **0.4618** |
+| r_t gate | 256 | 0.9686 | 0.5390 | **0.6888** |
+| n_t gate (candidate) | 256 | 0.9587 | 0.5457 | **0.6864** |
+| [z_t ; r_t] combined | 512 | 0.9761 | 0.5373 | 0.6251 |
+| mean(z_t) raw | 1 | 0.2200 | 0.3166 | 0.2539 |
+
+Correlations: swingup mean(z_t) vs KL = **−0.43**, balance mean(z_t) vs KL = −0.22, balance mean(z_t) vs recon = −0.28.
+
+### What These Numbers Mean
+
+**z_t inverts (0.46, below chance).** The update gate is the *opposite* of a confusion signal. High KL → lower z_t. Verified: low-KL quartile mean z_t = 0.9370, high-KL quartile mean z_t = 0.9269 — a gap of only 0.01. The update gate is nearly saturated at 0.94 across all states. The GRU has learned an "almost always overwrite" policy — it almost never carries forward h_{t-1} regardless of confusion level. The tiny negative correlation means confused states actually resist updating marginally more than coping states.
+
+**r_t is the best cross-task signal (0.69), beating Δh_t (0.68).** The reset gate — which controls how much of h_{t-1} feeds into the candidate computation — partially transfers. When confused, the model's strategy for using its past history (r_t activation pattern) has some consistency across tasks.
+
+**n_t is equally good (0.69).** The candidate hidden state — what the GRU proposes to write into h_t — also partially transfers. This makes sense: r_t shapes n_t, so if r_t has a cross-task confusion signal, n_t inherits it.
+
+**mean(z_t) raw: 0.25 — deeply inverted.** No useful information, completely wrong direction.
+
+### Interpretation
+
+The expected mechanism was wrong. Confusion does not cause the GRU to update more aggressively — the GRU almost always updates maximally (z_t ≈ 0.94). The confusion signal is not in *whether* h_t gets overwritten but in *what* the candidate contains (n_t) and *how past history influences it* (r_t).
+
+The cross-task signal that Δh_t was capturing is the directional content of r_t and n_t — the pattern of how the reset gate weights past history when computing the candidate. This pattern has partial task-agnostic structure at step ≥ 2, but not enough to cross the threshold into a practically useful signal.
+
+**The mechanistic picture:** This GRU is a near-perfect overwriter. Every step, it almost completely replaces h_t with the new candidate. Confusion is encoded in what that candidate looks like (n_t direction and r_t activation), not in whether the replacement happens. The candidate content is partly task-agnostic; the update decision (z_t) is not a confusion signal at all.
 
 ---
 
