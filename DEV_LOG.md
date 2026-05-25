@@ -53,7 +53,7 @@ The KL std of 6.94 is the key number here — it means the model genuinely varie
 
 ---
 
-## Phase 2 — Evaluation Sets
+## Evaluation Sets
 
 All sets collected using the **frozen** trained model (no further learning). Each contains `h_t`, `z_t`, KL, and reconstruction error per state.
 
@@ -800,6 +800,8 @@ The scope of the claim is now narrower but cleaner: the probe detects whether th
 
 **The h_t OOD inversion sharpens the claim.** On direct OOD detection (swingup vs balance), the h_t probe scores 0.49 — below chance — on a clean held-out evaluation. The probe trained to detect within-task confusion has literally no information about task identity. This is not a failure; it is the cleanest possible evidence that the two signals are orthogonal. A signal that accidentally detected OOD would have made the Phase 1 claim harder to defend. The inversion makes it precise: h_t encodes internal confusion, not input novelty.
 
+**The Phase 2 pilot temporal structure result.** probe(h_t) adds ΔR² growing from +0.016 at k=1 to +0.037 at k=20 on top of KL autocorrelation. The probe's R² is flat across all horizons (0.49–0.52) while KL's decays (0.77→0.61) — the probe encodes something in h_t's trajectory history that outlasts scalar KL autocorrelation. At k=20 the probe accounts for approximately 6% of explained variance beyond the KL baseline. This is not a trivial compression of current KL; it is forward-looking confusion context accumulated by the GRU over the trajectory.
+
 ---
 
 ### What is weaker — limitations to be direct about
@@ -816,4 +818,4 @@ Every prior causal tracing paper (ROME, MEMIT, CART) finds that learned informat
 
 This is a mechanistic finding in itself. It means the GRU mixes uncertainty information across all hidden units at every step — a consequence of the recurrent update rule, not a design choice. This changes the Phase 3 story, but it also gives something to say about the mechanism that is novel.
 
-The right way to frame this going into Phase 2: the question is not whether the signal is localised (it is not) but whether it is temporally structured — does it propagate forward in time in a way that is predictive and actionable?
+The Phase 2 pilot answered this question: the signal is temporally structured. probe(h_t) adds ΔR² = +0.016 at k=1 growing to +0.037 at k=20 on top of KL autocorrelation — its relative contribution increases as the prediction horizon extends. The probe's R² stays flat (0.49–0.52) while KL's decays (0.77→0.61), confirming h_t carries trajectory-level confusion context that persists where scalar KL fades. The remaining Phase 2 question is whether this structure is deeper and larger at 200M parameter scale.
