@@ -364,9 +364,58 @@ Correlations: swingup ||Δh_t|| vs KL = −0.025 (near zero), balance ||Δh_t|| 
 
 ### Interpretation
 
-The confusion signal is **directional and task-specific, not magnitude-based or task-agnostic.** The GRU learns particular directions in h_t space associated with swingup confusion — not a universal rule about update size. Those directions do not transfer to balance.
+The confusion signal is **directional and task-specific at episode start, but partially task-agnostic at mid-episode steps.** The step-filtering matters: the jump from 0.57 to 0.68 on within-balance is entirely explained by requiring step ≥ 2. Broken down:
 
-This is an informative negative result. It rules out the simplest version of the "dynamics encode confusion" hypothesis. What remains open: whether a more abstract property of the update — not direction, not magnitude, but something about the *geometry* of how h_t moves near confusion events — could generalise. That would require a different formulation beyond a linear probe on Δh_t.
+| Swingup filter | Balance filter | Δh_t within-balance |
+|---|---|---|
+| step ≥ 1 | step ≥ 1 | 0.5725 |
+| step ≥ 2 | step ≥ 1 | 0.6111 |
+| step ≥ 2 | step ≥ 2 | **0.6814** |
+
+Step 0 and 1 have h_t close to zero initialisation — the GRU has not accumulated task context yet, so Δh_t at those steps is dominated by initialization noise. Once both the probe training and test evaluation exclude these early steps, the signal improves significantly. The confusion-in-dynamics signal is **episode-mature** — it exists mid-trajectory, not at cold start.
+
+Raw norms remain inverted (||Δh_t|| within-balance: 0.37). The signal is directional, not magnitude-based: which way the GRU just moved carries partial cross-task confusion information, but how far it moved does not.
+
+---
+
+## Trajectory Curvature — Does Confusion Bend the h_t Path?
+
+### Motivation
+
+Δh_t direction is partially task-agnostic (0.68 at step ≥ 2). The natural follow-up: does adding the **second derivative** — how sharply the direction changed — improve or extend the signal?
+
+```
+c_t = h_t − 2·h_{t−1} + h_{t−2}
+```
+
+||c_t|| measures how much the trajectory bent at step t. If confused states produce more erratic trajectories (the model keeps changing direction because it is surprised in different ways), curvature would be a task-agnostic geometric property — not where h_t is, not which direction it is moving, but whether it keeps changing direction.
+
+### Results
+
+| Signal | Dims | SW held-out | Within-SW | Within-BAL ←key |
+|---|---|---|---|---|
+| h_t probe | 256 | 0.9026 | 0.5870 | 0.5603 |
+| Δh_t probe | 256 | 0.7077 | 0.7177 | **0.6814** |
+| c_t probe | 256 | 0.5584 | 0.4873 | 0.5399 |
+| [Δh_t ; c_t] probe | 512 | 0.7315 | 0.7083 | 0.6631 |
+| \|\|c_t\|\| raw | 1 | 0.4492 | 0.5849 | 0.3923 |
+| \|\|Δh_t\|\| raw | 1 | 0.4536 | 0.6251 | 0.3730 |
+
+Correlations: swingup ||c_t|| vs KL = −0.058 (near zero), balance ||c_t|| vs KL = 0.20, balance ||c_t|| vs recon = −0.13.
+
+### What These Numbers Mean
+
+**c_t probe within-balance: 0.54 — does not transfer.** The curvature hypothesis fails. Confused states do not produce more bent h_t trajectories in a way that is linearly separable and task-agnostic. Adding c_t to Δh_t actually degrades performance (0.66 vs 0.68 alone).
+
+**||c_t|| raw within-balance: 0.39 — inverted**, same pattern as ||Δh_t||. Confused balance states have smaller curvature magnitude than coping ones once KL is matched. The raw norms of both the first and second derivatives of h_t anti-correlate with confusion within-balance.
+
+**The signal is in the direction of Δh_t, not its magnitude or the curvature it produces.** The partial cross-task transfer at 0.68 comes from the directional pattern of the last GRU update, not from the trajectory's geometric shape.
+
+### Interpretation
+
+Curvature adds nothing. The confusion signal that partially generalises is the direction of the most recent update — what the GRU just did in response to the last observation. That direction has a partial cross-task signature. The second-order structure (how much that direction changed) does not.
+
+What remains open: why does the direction of Δh_t have any cross-task signal at all at step ≥ 2? One hypothesis — the GRU update gate fires in similar activation patterns when surprised regardless of task, even though the resulting movement in h_t space is not perfectly aligned. This is at the limit of what a linear probe can answer.
 
 ---
 
