@@ -269,9 +269,24 @@ where x = [z_{t−1}; action_{t−1}] is the input. The dominant variance in n_t
 
 More formally, let V_obs be the subspace of h_t space aligned with the dominant variance of x through the linear map W_in (before tanh), and V_⊥ its orthogonal complement. When z_t ≈ 1, h_t ≈ n_t, so the variance of h_t is dominated by the variance of n_t, which is dominated by the variance of W_in·x. Therefore I(confusion; V_obs) is bounded from above by a term proportional to (1 − mean(z_t)), the residual retention of previous state. As z_t → 1, the confusion signal must encode in V_⊥.
 
-This gives a testable prediction: across model instances with different mean(z_t) values, the angle between the confusion probe direction and the top PCA components should increase with mean(z_t) (more saturation → probe more orthogonal to high-variance subspace).
+This gives a testable prediction: higher z_gate → probe more orthogonal to top PCs (positive r between z_gate and probe-PC angle).
 
-Testing this prediction requires models with meaningfully different z_gate values. Across 4 XS model instances (3 random seeds), z_gate clusters at near-maximal saturation throughout — z_gate ∈ [0.927, 0.937], span 0.010. All models reach 88.5°–88.9° orthogonality. This narrow clustering is itself informative: **z_gate saturation is a robust property of RSSM training at XS scale, not a seed-dependent accident**. Every trained instance saturates similarly, which is consistent with the theory's premise that saturation follows from the training objective rather than from initialisation. But it means the variation needed to test the prediction — models at genuinely different saturation levels — requires either earlier training checkpoints (before z_gate converges) or model sizes where the GRU has not yet reached the saturation regime. This is the primary remaining test for the theory, and is the target of Phase 2 experiments at 200M parameter scale.
+We test this directly across 6 training checkpoints of the same model (steps 5K–100K), giving real z_gate variation:
+
+| Training step | mean(z_gate) | Probe-PC angle (top 10) |
+|---|---|---|
+| 5,000 | 0.775 | 89.0° |
+| 10,000 | 0.843 | 89.0° |
+| 20,000 | 0.859 | 88.2° |
+| 40,000 | 0.882 | 88.3° |
+| 70,000 | 0.901 | 87.7° |
+| 100,000 | 0.923 | 87.2° |
+
+z_gate span: 0.148. Angle span: 1.87°. Pearson r(z_gate, angle) = **−0.889** (p=0.018) — the opposite of the prediction. As z_gate saturates, the probe direction becomes *slightly less* orthogonal to the top PCs, not more.
+
+Two observations temper this falsification. First, the angle range is 87–89° throughout all training stages — the confusion signal is near-orthogonal to top PCs regardless of z_gate level. The geometric fact is robust. Second, at step 5K (z_gate=0.775) the model has barely begun training and the probe direction is essentially random (no real confusion signal to learn), producing 89° by chance rather than by mechanism. The slight decrease to 87° at 100K reflects the confusion direction stabilising in h_t space as training progresses, marginally more aligned with some low-variance PC directions.
+
+**Revised mechanistic account.** The null-space geometry is not primarily driven by z_gate saturation. A more accurate account: the RSSM training objective creates a structural separation in h_t between task-relevant information (which is observation-driven and lands in the high-variance subspace, captured by top PCs) and confusion-history information (which accumulates slowly across steps and lands in whatever low-variance directions are not claimed by task dynamics). This separation is a consequence of the *content* of what each subspace represents, not of how aggressively the GRU overwrites. The z_gate prediction was a plausible but incorrect mechanism for the same geometric outcome.
 
 ### 6.3 Implications for Phase 2 and Phase 3
 

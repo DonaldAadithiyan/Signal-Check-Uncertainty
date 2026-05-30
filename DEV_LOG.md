@@ -1297,35 +1297,38 @@ The original narrative ("probe tracks confusion=recon, ensemble tracks novelty=K
 
 ---
 
-## Seed Verification — Theory Prediction Partially Tested
+## Checkpoint Verification — Theory Prediction Tested and Revised
 
 ### Motivation
 
-§6.2 of the paper predicts: as GRU update-gate saturation mean(z_gate) increases, the angle between the confusion probe direction and the top PCA components should increase (more saturation → probe more orthogonal to the high-variance subspace). This follows from the argument that when z_t ≈ 1, h_t ≈ n_t, so h_t variance is dominated by observation content, forcing confusion into the orthogonal complement.
+§6.2 predicted: as z_gate saturation increases, the confusion probe direction should become more orthogonal to top PCA components (r positive). The seed-based test failed (all models at ~0.93, only 0.4° variation). The checkpoint-based test gives real variation.
 
 ### Results
 
-Across 4 model instances (world_model.pt + 3 ensemble seeds):
+Training from scratch (seed=42) with checkpoints at 5K, 10K, 20K, 40K, 70K, 100K steps:
 
-| Model | mean(z_gate) | Probe-PC angle (top 10) | KL mean |
+| Step | mean(z_gate) | Probe-PC angle (top 10) | KL mean |
 |---|---|---|---|
-| main (seed 0) | 0.9369 | 88.8° | 20.6 |
-| ensemble seed 0 | 0.9267 | 88.5° | 16.5 |
-| ensemble seed 1 | 0.9367 | 88.8° | 13.0 |
-| ensemble seed 2 | 0.9349 | 88.9° | 14.7 |
+| 5,000 | 0.775 | 89.0° | 8.7 |
+| 10,000 | 0.843 | 89.0° | 9.2 |
+| 20,000 | 0.859 | 88.2° | 13.1 |
+| 40,000 | 0.882 | 88.3° | 15.9 |
+| 70,000 | 0.901 | 87.7° | 28.1 |
+| 100,000 | 0.923 | 87.2° | 24.1 |
 
-Pearson r(mean z_gate, mean probe-PC angle): **+0.891** (predicted direction: positive).
-
-z_gate range: [0.927, 0.937], span = 0.010.
-Angle range: [88.5°, 88.9°], span = 0.4°.
+Pearson r(z_gate, angle): **−0.889** (p=0.018). z_gate span: 0.148. Angle span: 1.87°.
 
 ### What these numbers mean
 
-**z_gate saturation is a robust property of RSSM training, not a seed-dependent accident.** All 4 models cluster at near-maximal saturation regardless of random seed. This is itself a finding: the always-overwrite policy is an attractor of RSSM training at this scale, not a fragile outcome. But it means the variation needed to test the z_gate→orthogonality prediction is absent — a correlation computed over a 0.4° angle range is not meaningful verification.
+**The specific prediction is falsified.** As z_gate increases during training, the probe-PC angle *decreases* (89° → 87°) — the opposite of the predicted direction. The theory was wrong about the mechanism.
 
-**The r=+0.891 number was dropped from the paper.** It misleads: a high correlation over near-zero variation tells you nothing about the underlying relationship. The theory is stated on its logical structure (when z_t→1, h_t≈n_t, so h_t variance is dominated by observation content, forcing confusion into the orthogonal complement). Testing the prediction requires models at genuinely different saturation levels — earlier training checkpoints or larger architectures. That is the Phase 2 target.
+**The geometric fact is robust.** The probe is near-orthogonal to top PCs throughout ALL training stages (87–89° range). This is the durable finding: null-space encoding holds regardless of z_gate level.
 
-**What this replaces.** The original theory section deferred entirely to future work. The revised version: states the prediction clearly, reports that XS-scale models all saturate robustly (which supports the theory's premise), and is explicit that the prediction itself awaits verification at scale. Honest and complete without overclaiming.
+**Why the falsification makes sense in retrospect.** At step 5K, z_gate=0.775 and the model is poorly trained — the probe has no real confusion signal to detect, so its direction is approximately random in h_t space (random directions in high-dimensional space are near-orthogonal to everything, hence 89° by chance). As training progresses and the confusion signal develops, the probe direction stabilises at ~87° — the actual location of the confusion information in h_t space, which happens to be slightly less random than the early-training probe direction.
+
+**Revised mechanistic account.** The null-space geometry is not primarily caused by z_gate saturation. It reflects the structural separation between task-relevant variance (high-amplitude, observation-driven, claimed by top PCs) and confusion-history variance (slow-accumulating, small-amplitude, in the leftover low-variance directions). This separation follows from the *content* of what each subspace encodes, not from the GRU's overwrite rate. The z_gate account was a plausible but incorrect causal story for a real geometric observation.
+
+**What this changes in the paper.** §6.2 now reports the falsification honestly and revises the mechanistic account. The null-space geometry finding (88.2°, 9% in top PCs) is unaffected — it is an empirical fact that stands. The theoretical explanation is updated from "z_gate saturation forces confusion into the null space" to "RSSM training creates a structural content-based separation between task-relevant and confusion-related information in h_t."
 
 ---
 
