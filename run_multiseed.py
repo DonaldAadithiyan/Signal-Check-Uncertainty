@@ -3,7 +3,7 @@
 Task C — Multi-seed replication with proper uncertainty quantification.
 
 For each of N_SEEDS independent seeds, from scratch:
-  1. Train an XS world model (seed s) + a 3-member ensemble (seeds derived from s).
+  1. Train an XS world model (seed s) + an N_ENSEMBLE-member ensemble (seeds from s).
   2. Collect training_states, Set A/B/C (KL-matched), within-balance confound set.
   3. Fit Probe A / Probe C / z_t probe; block/quarter analysis.
   4. C_t characterisation (best-γ, R²).
@@ -45,7 +45,9 @@ from src.probe.intervention import (
     compute_ct, probe_direction, bootstrap_auroc_ci,
 )
 
-N_SEEDS   = 5
+N_SEEDS     = 5
+N_ENSEMBLE  = 1          # ensemble members per seed (RWM-U baseline). 1 → 2-model
+                        # disagreement (main + member); raise for a fuller ensemble.
 ROOT      = 'outputs/multiseed'
 GAMMAS    = [0.70, 0.80, 0.90, 0.95, 0.99]
 MAX_LAG   = 50
@@ -144,7 +146,7 @@ def run_seed(seed, cfg, force=False):
     model, states = train_or_load(cfg, seed, ck_main, st_main)
 
     ens_models = []
-    for j in range(3):
+    for j in range(N_ENSEMBLE):
         es = 1000 + seed * 10 + j          # distinct ensemble seeds per main seed
         ck_e = os.path.join(sd_dir, f'ensemble_{j}.pt')
         print(f"[seed {seed}] training ensemble member {j} (seed {es})...", flush=True)
@@ -232,9 +234,11 @@ def run_seed(seed, cfg, force=False):
     # 7. routing recall
     route = routing_recall(clf_a, sc_a, h_all[te_idx], kl_te, recon_all[te_idx])
 
-    # 8. ensemble disagreement on Set C
+    # 8. ensemble disagreement on Set C. With N_ENSEMBLE=1 we need ≥2 models for a
+    #    variance, so include the main model → 2-model (main+member) disagreement proxy.
     from src.probe.linear_probe import ensemble_disagreement
-    ens_dis, ens_auroc_c = ensemble_disagreement(ens_models, set_c, cfg)
+    disagreement_models = ens_models if len(ens_models) >= 2 else [model] + ens_models
+    ens_dis, ens_auroc_c = ensemble_disagreement(disagreement_models, set_c, cfg)
 
     # ── bootstrap CIs for the three argument-carrying numbers ──
     scores_c = clf_a.predict_proba(sc_a.transform(set_c['h']))[:, 1]
