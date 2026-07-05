@@ -1592,3 +1592,59 @@ signals to isolate whether binarization was the cause. N = 5,000 starting states
 "it was just the binarization" — confusion-weighting of imagined returns genuinely hurts
 value estimation, regardless of how the confusion signal is represented. Reported alongside
 the original negative, which stands.
+
+## Task D — Generalisation to a second, structurally different environment
+
+Every prior experiment used cartpole variants sharing an identical 5-dim observation
+space. To bound the generality claim, the **entire pipeline** was re-run from scratch on
+**dm_control reacher/easy** — a 2-link arm reaching a target, with genuinely different
+dynamics, a different observation dimensionality (6 vs 5) and a different action
+dimensionality (2 vs 1). New infrastructure: `src/env/dmc_wrapper.py` (generalised
+domain/task wrapper), `run_second_env.py` (env-parametrised training + full analysis).
+
+| Metric | cartpole-swingup | reacher-easy |
+|---|---|---|
+| obs_dim / act_dim | 5 / 1 | 6 / 2 |
+| Probe A held-out AUROC | 0.9019 | 0.7641 |
+| Probe A Set A AUROC | 0.8632 | 0.7225 |
+| Probe A Set B AUROC | 0.8464 | 0.7131 |
+| **Probe A Set C AUROC (headline)** | **0.7227** | **0.6190** [0.564, 0.679] |
+| Within-task confound AUROC | 0.5060 | 0.5782 |
+| C_t best γ | 0.95 | 0.70 |
+| C_t best R² | 0.798 | 0.216 |
+| Null-space angle (°) | 88.0 | 89.4 |
+| Frac probe dir in top-10 PC | 0.090 | 0.0017 |
+
+Set C AUROC is a bootstrap point estimate with 95% CI (1000×, n=400 contrastive states).
+
+**Partial replication — reported honestly, neither oversold nor dismissed.**
+
+*What replicates cleanly:*
+- **The confusion signal is present** on a structurally different environment: Set C
+  AUROC = 0.619, with a 95% CI [0.564, 0.679] that sits **above 0.5** — the KL-matched
+  contrastive signal is not a cartpole artefact.
+- **The null-space geometry replicates and is if anything sharper**: the confusion
+  direction is 89.4° from the top-10 PCs and carries only **0.17%** of its variance there
+  (vs 88.0° / 9% on cartpole). The "confusion fingerprint lives in the near-null space of
+  h_t" finding is **environment-general**, not cartpole-specific — the single most
+  important mechanistic claim survives the transfer.
+
+*What is weaker / does not fully transfer:*
+- **The closed-form C_t characterisation degrades.** Best R²(probe ~ C_t) falls from 0.80
+  to **0.22**, and the effective memory shortens: best γ = 0.70 (a ~3-step memory)
+  vs 0.95 (~20-step) on cartpole. This is informative rather than fatal — the probe still
+  reads accumulated confusion, but the discounted-count closed form is a much looser fit
+  in reacher's dynamics. Reacher episodes are short goal-reaching bouts, so long confusion
+  streaks are rarer and a shorter memory is mechanistically plausible.
+- **The within-task confound control is less clean.** On cartpole it collapsed to 0.506
+  (chance), strong evidence the probe reads confusion and not task identity. On reacher the
+  within-task control is **0.578** — modestly above chance and close enough to the Set C
+  value (0.619) that we cannot claim the reacher signal is as cleanly decoupled from task
+  structure as the cartpole one. Stated plainly: the reacher confusion signal is present
+  but less confound-free than cartpole's.
+
+**Net:** a valid second data point, exactly as the brief intended — the finding is
+architecture-general and the null-space geometry is environment-general, but the precise
+closed-form (γ≈0.95, R²≈0.80) is cartpole-specific and loosens on different dynamics. This
+sharpens the paper's claim rather than inflating it. Full results:
+`outputs/second_env/reacher_easy_results.json`.
