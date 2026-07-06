@@ -103,6 +103,60 @@ def amplify(h, v, alpha):
     return h + alpha * v[None, :]
 
 
+# ─── imagined-vs-real latent divergence (Tasks G item 2 + H) ─────────────────
+
+@torch.no_grad()
+def imagined_vs_real_latent(model, traj, t, horizon, h_start=None, z_start=None):
+    """From site t in a trajectory, roll IMAGINATION forward `horizon` steps and
+    compare, at each step, the imagined deterministic latent h to the REAL latent
+    obtained by encoding the actual subsequent observations (posterior rollout on
+    the true obs). Returns:
+      dist[k]      = ||h_imag_k - h_real_k||  for k=1..horizon (as available)
+      real_h[k], imag_h[k]
+
+    The imagination uses the trajectory's actual actions (so any imagined-vs-real
+    gap reflects the latent transition function, not action mismatch). h_start /
+    z_start override the starting latent (for the intervened-vs-baseline contrast).
+    """
+    device = next(model.parameters()).device
+    T = len(traj['obs'])
+
+    # starting latent at t (real posterior unless overridden)
+    if h_start is None:
+        h_im = torch.tensor(traj['h'][t], dtype=torch.float32, device=device).unsqueeze(0)
+    else:
+        h_im = torch.tensor(h_start, dtype=torch.float32, device=device).unsqueeze(0)
+    if z_start is None:
+        z_im = torch.tensor(traj['z'][t], dtype=torch.float32, device=device).unsqueeze(0)
+        # traj['z'] stores posterior logits; sample a state from them
+        z_im = model.rssm._straight_through_sample(z_im)
+    else:
+        z_im = torch.tensor(z_start, dtype=torch.float32, device=device).unsqueeze(0)
+
+    # real posterior rollout from the same t (ground truth latent path)
+    h_re = torch.tensor(traj['h'][t], dtype=torch.float32, device=device).unsqueeze(0)
+    z_re_logits = torch.tensor(traj['z'][t], dtype=torch.float32, device=device).unsqueeze(0)
+    z_re = model.rssm._straight_through_sample(z_re_logits)
+
+    dists, imag_hs, real_hs = [], [], []
+    for k in range(1, horizon + 1):
+        kk = t + k
+        if kk >= T:
+            break
+        a = torch.tensor(traj['act'][kk - 1], dtype=torch.float32, device=device).unsqueeze(0)
+        # imagination step (prior only) with the real action
+        h_im, z_im, _ = model.rssm.imagine_step(h_im, z_im, a)
+        # real posterior step on the actual observation
+        obs_k = torch.tensor(traj['obs'][kk], dtype=torch.float32, device=device).unsqueeze(0)
+        emb = model.encoder(obs_k)
+        h_re, z_re, _, _ = model.rssm.observe_step(h_re, z_re, a, emb)
+        d = float(torch.norm(h_im - h_re).item())
+        dists.append(d)
+        imag_hs.append(h_im.squeeze(0).cpu().numpy().copy())
+        real_hs.append(h_re.squeeze(0).cpu().numpy().copy())
+    return np.array(dists, dtype=np.float32), np.array(imag_hs), np.array(real_hs)
+
+
 # ─── C_t (discounted confusion integral) ─────────────────────────────────────
 
 def compute_ct(kl, traj_id, gamma=0.95, max_lag=50, kl_median=None):
