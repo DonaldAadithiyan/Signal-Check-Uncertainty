@@ -1753,3 +1753,121 @@ the *residual* unreliability that recovery does not erase, and it is fundamental
 property of posterior-vs-prior history (C_t), a different quantity than latent-dynamics
 drift (consistent with Task G's distinct-measure result). Figure:
 `outputs/figures/task_h_attractor.png`.
+
+---
+
+## Task C — Multi-seed replication with proper uncertainty quantification
+
+Five world models trained independently from scratch (seeds 0–4), each with its own
+3-member-equivalent (1 ensemble member; disagreement = main+member) pipeline: training
+states, Set A/B/C, within-balance confound, Probes A/C/z_t, block/quarter, C_t
+characterization, boundary probe, orthogonality, routing oracle, and bootstrap CIs.
+Script: `run_multiseed.py` (resumable per seed). Aggregation: `--aggregate-only`.
+
+**Every headline number now carries a 5-seed mean ± std and, for the three
+argument-carrying quantities, a bootstrap 95% CI.**
+
+| Metric | mean ± std (n=5) | median [min, max] |
+|---|---|---|
+| Probe A — Set A (ID) | 0.809 ± 0.033 | 0.802 [0.777, 0.872] |
+| **Probe A — Set C (KL-matched) [headline]** | **0.715 ± 0.074** | 0.761 [0.590, 0.783] |
+| Within-balance confound | 0.321 ± 0.094 | 0.318 [0.186, 0.471] |
+| z_t probe — Set C | 0.578 ± 0.109 | 0.595 [0.459, 0.752] |
+| Boundary probe | **1.0000 ± 0.0000** | 1.000 [1.000, 1.000] |
+| C_t R² (best γ) | 0.763 ± 0.045 | 0.764 [0.703, 0.828] |
+| Routing recall — Probe A | 0.626 ± 0.047 | 0.604 [0.568, 0.697] |
+| Routing recall — recon oracle | 0.561 ± 0.052 | 0.558 [0.510, 0.652] |
+| Ensemble — Set C | 0.595 ± 0.028 | 0.596 [0.553, 0.633] |
+
+**Best γ = 0.95 on all 5 seeds** — the closed-form memory constant is not a single-run
+artefact; it is identical across every seed.
+
+### Bootstrap 95% CIs on the three argument-carrying numbers (mean across seeds)
+
+| Quantity | point | 95% CI |
+|---|---|---|
+| Set C AUROC | +0.7154 | **[+0.666, +0.763]** — above 0.5 |
+| Within-balance AUROC | +0.3214 | **[+0.271, +0.373]** — below 0.5 (see below) |
+| Routing gap (Probe A − recon recall) | +0.0651 | **[+0.058, +0.072]** — above 0 |
+
+### Paired statistical tests
+
+- **Probe A vs Ensemble (Set C AUROC):** Δ = +0.121 ± 0.070; Wilcoxon p = 0.0625;
+  **pooled paired-bootstrap Δ = +0.110, 95% CI [+0.082, +0.138], p ≈ 0.0000.**
+- **Probe A vs Recon-oracle (routing recall):** Δ = +0.065 ± 0.019; Wilcoxon p = 0.0625.
+
+### Verdict — what replicates, and two honest caveats
+
+**Replicates robustly:**
+- **Set C headline holds on all 5 seeds** (0.590–0.783; the *lowest* seed's own 95% CI
+  [0.535, 0.642] still excludes 0.5). The core claim survives seed variance.
+- **Probe A beats the recon oracle in routing on all 5 seeds** (every seed: probe recall
+  > recon recall), gap CI comfortably above 0 — the pooled-bootstrap confirms it.
+- **Probe A ≥ ensemble on Set C on all 5 seeds**; pooled bootstrap p ≈ 0.
+- **γ = 0.95 and boundary AUROC = 1.0** are seed-invariant.
+
+**Honest caveat 1 — the within-balance control does NOT sit at chance; it inverts.**
+The pilot reported within-balance ≈ 0.506 (chance). Across 5 seeds it is **consistently
+below 0.5** (0.187–0.471, mean 0.321, CI [0.271, 0.373] — every seed's CI entirely below
+0.5). This is *not* chance and *not* the "0.506" the pilot eyeballed. The correct reading:
+the swingup-trained probe **systematically anti-ranks** the within-balance (untrained-task)
+groups — it inverts rather than transfers. This still supports the underlying point (the
+probe does **not** carry a task-identity-invariant confusion reading to an untrained task),
+but the "≈ 0.5, i.e. chance" framing must be replaced with "systematically inverted (≈ 0.32),
+i.e. the probe does not transfer and in fact anti-correlates on the untrained task." A
+consistent inversion is arguably *stronger* evidence of non-transfer than pure chance would
+be, but it must be described accurately. **PAPER.md's within-balance = 0.506 line needs
+updating.**
+
+**Honest caveat 2 — n = 5 caps the Wilcoxon at p = 0.0625.** With 5 paired seeds, if all 5
+differences share a sign (they do, for both comparisons), the smallest attainable two-sided
+Wilcoxon signed-rank p is 0.0625 — it **cannot** reach < 0.05 at this sample size. So the
+Wilcoxon is *directionally unanimous (5/5)* but not "significant" by the 0.05 convention.
+The **pooled paired-bootstrap** (which resamples held-out events, not seeds) does reach
+p ≈ 0.0000 on the ensemble comparison and is the statement to lead with; the per-seed
+Wilcoxon should be reported as "unanimous in direction across all 5 seeds (p = 0.0625, the
+floor at n = 5)," not overstated.
+
+Raw per-seed outputs saved under `outputs/multiseed/seed_*/`; aggregate in
+`outputs/multiseed/aggregate.json`.
+
+## Task I — Causal intervention replicated across the 5 seeds
+
+The Task-G-upgraded causal procedure (ablate the confusion direction vs a 50-direction
+empirical null) applied to each of the 5 independently-trained seed models, each with its
+own Probe A, 40 held-out trajectories (~400 sites), and its own null. Script:
+`run_task_i_multiseed_causal.py`.
+
+| Measure | confusion mean ± std (n=5) | mean null-percentile | separates on all 5? |
+|---|---|---|---|
+| Δ probe @ t | −0.385 ± 0.118 | **100th** | **YES** |
+| Δ probe @ t+1 | −0.312 ± 0.080 | 100th | YES |
+| Δ probe @ t+5 | −0.260 ± 0.071 | 100th | YES |
+| Δ probe @ t+10 | −0.233 ± 0.065 | 99th | YES |
+| routing flip rate | +0.395 ± 0.133 | 59th | **no (3 of 5)** |
+| next-step KL | +0.061 ± 0.797 | 72nd | no |
+
+Per-seed probe-decay percentile: **100th on every seed** (z = −4 to −8). Per-seed routing
+percentile: 98, 0, 0, 98, 100 (seeds 0–4). Per-seed next-KL percentile: 94, 84, 72, 50, 58.
+
+### Verdict — the primary causal result replicates; routing is seed-dependent
+
+- **Probe-score decay replicates cleanly and decisively:** on **all 5** independently-trained
+  models, ablating the confusion direction sits at the **100th percentile** of that seed's own
+  50-direction empirical null (99th at k=10). The core Task A/G finding — the confusion
+  direction is causally load-bearing for the model's confusion readout — is **not a
+  single-model artefact.**
+- **Routing-flip separation is seed-dependent (3 of 5):** seeds 0, 3, 4 place the confusion
+  direction at the 98–100th percentile of the routing-flip null, but seeds 1 and 2 at the 0th
+  percentile — on those two models a random direction flips routing decisions *more* than the
+  confusion direction does. The mean flip magnitude is still large (0.395), but its extremity
+  vs the null does **not** hold on every seed. Reported honestly: the routing-flip result from
+  the single main model (Task A: 100th pct) does **not** fully generalize.
+- **Next-step KL does not cleanly separate** (72nd pct mean, huge variance) — **replicates
+  Task A's honest finding** that this is the one measure the confusion direction does not
+  cleanly move.
+
+**Net:** the single most important causal claim (probe-decay = the confusion direction is
+load-bearing) is now **replicated at the extreme of an empirical null on all 5 seeds**; the
+secondary routing-flip causal claim is **partially replicated (3/5)** and should be stated as
+such, not overclaimed. Raw: `outputs/causal/task_i_results.json`.

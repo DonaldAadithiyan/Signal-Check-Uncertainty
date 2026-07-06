@@ -4,8 +4,20 @@
 Someone who reads only this document should be able to correctly update every affected
 line of PAPER.md without re-reading DEV_LOG.md.
 
-**Last updated:** 2026-07-06 (Phase 1c). **Status of pending items:** Task C aggregation
-and Task I are marked ⏳ and filled in when the 5-seed job completes; everything else is final.
+**Last updated:** 2026-07-06 (Phase 1c — COMPLETE). All tasks A–I done; Task C and Task I
+numbers are filled in below.
+
+**✅ PAPER.md reconciliation APPLIED (2026-07-06).** Every §2 prescription below has been
+written into PAPER.md (backup at `PAPER.md.bak`): abstract (A1 seed CI, A3 reacher clause,
+A4 z_gate→structural, A5 boundary magnitude, added causal sentence); contributions C2/C3 +
+new contribution 6 (causal + attractor); §4.1 Table 1 within-balance 0.506→0.321 with the
+inversion footnote (A9); §4.3 geometry reframed to structural + Task B causal pointer; §4.6
+boundary magnitude-effect (Task E); new §4.7 (causal load-bearing, empirical null, robustness,
+5-seed replication + honest 3/5 routing & next-KL limits) and §4.8 (Biased Dreams reinforcing);
+§6.1 Limitations (reacher partial-replication, z_gate framing); §6.2 extended with the
+inference-time gate-override causal table (falsification preserved, not undone); §7 Related Work
+(Berger et al. reinforcing + Makelov illusion mitigations); §8 conclusion; 2 references added.
+Note left for author: Berger et al. citation needs full venue/year/initials.
 
 Provenance key: P1 = Phase 1 (pilot), P1b = Phase 1b, P1c = Phase 1c. DEV_LOG section
 names in parentheses.
@@ -22,13 +34,16 @@ mean±std it is shown in the "seeds" column once available.
 
 | Metric | Value | n / spread | Source |
 |---|---|---|---|
-| Probe A — Set A (ID) | 0.863 | n=1 · seeds ⏳ | P1 (§4.1) |
-| Probe A — Set B (noisy OOD) | 0.846 | n=1 · seeds ⏳ | P1 (§4.1) |
-| **Probe A — Set C (KL-matched) [headline]** | **0.723** | n=1; 5-seed ⏳ (seed0 0.761, CI[0.712,0.805]) | P1 (§4.1), P1b Task C |
-| Probe A — within-balance confound | 0.506 | n=1; 5-seed ⏳ (must straddle 0.5) | P1 (§4.1), P1b Task C |
+| Probe A — Set A (ID) | 0.809 ± 0.033 | **n=5** [0.777, 0.872] | P1 (§4.1), P1b Task C |
+| Probe A — Set B (noisy OOD) | 0.846 | n=1 | P1 (§4.1) |
+| **Probe A — Set C (KL-matched) [headline]** | **0.715 ± 0.074** | **n=5**, CI [0.666, 0.763]; all 5 seeds >0.5 (min-seed CI [0.535,0.642]) | P1 (§4.1), **P1b Task C** |
+| Probe A — within-balance confound | **0.321 ± 0.094** | **n=5**, CI [0.271, 0.373] — **INVERTS below 0.5, not chance** (see §2 A-new) | P1 (§4.1), **P1b Task C** |
 | Probe C — Set C (recon→h_t) | 0.721 | n=1 | P1 (§4.1) |
-| z_t probe — Set C | ~0.72 | n=1; 5-seed ⏳ | P1, P1b Task C |
-| RWM-U Ensemble — Set C | 0.744 | n=1; 5-seed paired test ⏳ | P1 (§4.1), P1b Task C |
+| z_t probe — Set C | 0.578 ± 0.109 | **n=5** [0.459, 0.752] — noisiest metric | P1, P1b Task C |
+| RWM-U Ensemble — Set C | 0.595 ± 0.028 | **n=5**; Probe A > ens on all 5, pooled bootstrap Δ=+0.110 CI[+0.082,+0.138] p≈0 | P1 (§4.1), **P1b Task C** |
+| C_t best γ (all 5 seeds) | **0.95** | **n=5, identical every seed** | P1b Task C |
+| C_t R² (best γ) | 0.763 ± 0.045 | **n=5** [0.703, 0.828] | P1b Task C |
+| Boundary probe AUROC | 1.0000 ± 0.0000 | **n=5, seed-invariant** | P1b Task C |
 | Probe A held-out (ID) | 0.9019 | n=1 | P1 |
 
 ### 1.2 Closed-form C_t characterization
@@ -65,13 +80,14 @@ mean±std it is shown in the "seeds" column once available.
 
 | Metric | Value | n / spread | Source |
 |---|---|---|---|
-| Probe A recall @ 30% budget | 0.818 | n=1; 5-seed ⏳ (seed0 0.604*) | P1 (§4.5), P1b Task C |
-| Recon-oracle recall @ 30% budget | 0.770 | n=1; 5-seed ⏳ (seed0 0.558*) | P1 (§4.5), P1b Task C |
-| Probe−recon routing gap | +0.048 | 5-seed bootstrap CI + paired test ⏳ | P1b Task C |
+| Probe A recall @ 30% budget | 0.626 ± 0.047 (multiseed) / 0.818 (pilot) | **n=5** [0.568, 0.697] | P1 (§4.5), P1b Task C |
+| Recon-oracle recall @ 30% budget | 0.561 ± 0.052 (multiseed) / 0.770 (pilot) | **n=5** [0.510, 0.652] | P1 (§4.5), P1b Task C |
+| **Probe−recon routing gap** | **+0.065** | **n=5**, bootstrap CI [+0.058, +0.072]; Probe A > recon on ALL 5 seeds; Wilcoxon p=0.0625 (n=5 floor) | **P1b Task C** |
 
-*seed0's absolute recall differs from the pilot because the multiseed routing uses top-25%-KL
-events on a different held-out sample; the **probe > recon ordering** is what replicates and is
-the claim. Confirm across all 5 seeds in the aggregation.
+*Absolute recall differs from the pilot's 0.818/0.770 because the multiseed routing scores
+top-25%-KL events on a different held-out sample; the **probe > recon ordering** is the claim,
+and it replicates on all 5 seeds. (See §4 open-item on the n=5 Wilcoxon floor — lead with the
+gap's bootstrap CI, which is comfortably above 0.)
 
 ### 1.6 Causal intervention (Task A) + hardening (Tasks G, I)
 
@@ -86,7 +102,9 @@ the claim. Confirm across all 5 seeds in the aggregation.
 | Distinct measure (latent divergence) vs null | 32nd pct (z=−0.6) — **partial** | 25 random dirs | P1c Task G |
 | Robustness: effect retained at 0.25 dir-rotation | 58% | mean of 5 rotations | P1c Task G |
 | Probe/C_t direction consistency | cos=0.778 (38.9°) | — | P1b Task A |
-| **Causal effect replicated across 5 seeds** | ⏳ | mean±std + per-seed null pct | **P1c Task I** |
+| **Causal probe-decay replicated across 5 seeds** | Δprobe@t = −0.385 ± 0.118, **100th pct on ALL 5** | n=5, each vs own 50-dir null | **P1c Task I** |
+| Causal routing-flip across 5 seeds | +0.395 ± 0.133, **59th pct mean (3/5 separate)** — partial | n=5 | **P1c Task I** |
+| Causal next-KL across 5 seeds | +0.061 ± 0.797, 72nd pct — **does not separate (as Task A)** | n=5 | P1c Task I |
 
 ### 1.7 Attractor-recovery cross-check (Task H, Biased Dreams)
 
@@ -118,7 +136,8 @@ Format: *location — claim as written — status — corrected text (if needed)
 ### Abstract
 
 - **A1 — "a linear probe trained on h_t … achieves AUROC 0.72 on a KL-matched contrastive set."**
-  Status: **ACCURATE (n=1); strengthen with seeds ⏳.** Add the 5-seed mean±std and the bootstrap 95% CI once Task C aggregation lands. Seed-0 alone gives 0.761 [0.712, 0.805].
+  Status: **ACCURATE and now REPLICATED.** 5-seed mean **0.715 ± 0.074**, bootstrap 95% CI **[0.666, 0.763]**; all 5 seeds above 0.5 (weakest seed's own CI [0.535, 0.642] still excludes 0.5).
+  **Suggested text:** "…achieves AUROC 0.72 (5-seed mean 0.715 ± 0.074, 95% CI [0.666, 0.763]) on a KL-matched contrastive set."
 
 - **A2 — "0.70 cross-task without multi-task training (via first-difference Δh_t)."**
   Status: **ACCURATE (n=1).** Unchanged by this pass.
@@ -137,15 +156,19 @@ Format: *location — claim as written — status — corrected text (if needed)
   Status: **⚠️ RE-EXAMINE.** This is a *different* z_gate claim (about the boundary, not the confusion geometry). It is not directly tested by Task B (which tests the confusion-direction geometry). Keep, but flag in Open Items — given A4's correction, any z_gate-mechanism language deserves scrutiny. The boundary being a magnitude effect (A5) is the more defensible framing.
 
 - **A7 — "routing … outperforms recon-threshold baselines at 30% query rate (0.818 vs 0.770 recall), capturing 81% of the KL oracle's advantage."**
-  Status: **ACCURATE (n=1); needs seed CI + paired test ⏳** (Task C provides both). The ordering replicates on seed 0; confirm the gap's bootstrap CI and Wilcoxon across 5 seeds.
+  Status: **ACCURATE and REPLICATED (ordering).** Probe A > recon on **all 5 seeds**; the gap is **+0.065, bootstrap 95% CI [+0.058, +0.072]** (comfortably above 0). The 0.818/0.770 pilot point estimates stand for the pilot's specific setup; add "the probe-over-recon advantage replicates across 5 seeds (gap +0.065, CI [+0.058,+0.072])." Report the Wilcoxon as *directionally unanimous, p=0.0625 (the n=5 floor)* — do **not** claim p<0.05 across seeds; lead with the bootstrap CI.
 
 - **A8 — "probe-only detections have 3.4× longer mean streak length than recon-only detections."**
   Status: **ACCURATE (n=1).** Unchanged.
 
+- **A9 — Table 1 / §4.1: "within-balance 0.506" (framed as chance).**
+  Status: **⚠️ CORRECTION REQUIRED.** Across 5 seeds the within-balance confound is **0.321 ± 0.094, CI [0.271, 0.373]** — consistently **below** 0.5, with every seed's CI entirely below 0.5. This is **not chance; the probe systematically anti-ranks** the untrained-task groups (it inverts, not merely fails). The underlying point stands (no task-identity-invariant transfer), but "0.506 / chance" is inaccurate.
+  **Corrected text:** "On the within-balance confound (both groups from the untrained balance task) the swingup-trained probe scores 0.32 (5-seed, CI [0.27, 0.37]) — systematically **inverted** rather than at chance: the probe does not transfer its confusion reading to an untrained task and in fact anti-correlates, confirming the Set C signal is not task-identity detection." (Arguably stronger evidence of non-transfer than chance.)
+
 ### Introduction / Contributions
 
-- **C1 (contribution 1) — within-task confusion signal, AUROC 0.72.** ACCURATE; add seeds ⏳.
-- **C2 (contribution 2) — closed-form C_t, γ=0.95, R²=0.80.** ACCURATE for cartpole; note reacher divergence (see A3).
+- **C1 (contribution 1) — within-task confusion signal, AUROC 0.72.** ACCURATE and **replicated** (5-seed 0.715 ± 0.074, CI [0.666, 0.763]).
+- **C2 (contribution 2) — closed-form C_t, γ=0.95, R²=0.80.** ACCURATE for cartpole and **strengthened**: γ=0.95 is identical on **all 5 seeds**, R²=0.763 ± 0.045 (n=5). Note reacher divergence (γ=0.70; see A3).
 - **C3 (contribution 3) — "geometric account … consistent with GRU update-gate saturation theory."** ⚠️ **SUPERSEDED** — same fix as A4. Change "consistent with GRU update-gate saturation theory" → "a structural property, shown causally independent of update-gate saturation (Task B)."
 - **C4 (contribution 4) — cross-task via Δh_t, 0.70.** ACCURATE.
 - **C5 (contribution 5) — routing + boundary as second orthogonal signal.** ACCURATE; reframe boundary per A5.
@@ -153,7 +176,7 @@ Format: *location — claim as written — status — corrected text (if needed)
 
 ### New contributions to ADD (from Phase 1b/1c)
 
-- **NEW-1 (Task A/G/I):** the confusion direction is **causally load-bearing** — ablation collapses the readout (−0.575 vs −0.004 random) and flips 80% of routing decisions; at the **100th percentile of a 50-direction empirical null** (z=−23/+31), degrading gracefully under perturbation (Makelov/Sklar illusion checks passed). [+ 5-seed replication ⏳ Task I]
+- **NEW-1 (Task A/G/I):** the confusion direction is **causally load-bearing** — ablation collapses the readout (−0.575 vs −0.004 random), at the **100th percentile of a 50-direction empirical null** (z=−23/+31), degrading gracefully under perturbation (Makelov/Sklar illusion checks passed), and **the probe-decay effect replicates at the 100th percentile on all 5 independently-trained seeds** (Task I). The routing-flip effect (80% on the main model) is **partial across seeds (3/5 at the extreme)** — state as single-model/partial, not general. Next-step-KL does not cleanly separate on any seed (consistent with Task A).
 - **NEW-2 (Task B):** the null-space geometry is **causally z-independent** (single frozen model, gate forced 0.5–0.99).
 - **NEW-3 (Task D):** the signal and the null-space geometry **replicate on reacher** (different dynamics, obs 6/act 2); the closed-form C_t is cartpole-specific.
 - **NEW-4 (Task H):** the confusion signal is **REINFORCING** with Biased Dreams' attractor/reward-overestimation phenomenon (r=+0.39 latent gap, r=+0.48 reward gap) — independent support.
@@ -168,8 +191,14 @@ Format: *location — claim as written — status — corrected text (if needed)
 
 ## 4. Open items (attempted but ambiguous / underpowered / needs follow-up)
 
-1. **⏳ Task C aggregation** — 5-seed mean±std, bootstrap CIs (Set C, within-balance, routing gap), and paired tests (Probe A vs ensemble; Probe A vs recon oracle). Job running; fill §1.1/1.5 and A1/A7/C1 when done. **Blocker for finalizing the abstract's headline CIs.**
-2. **⏳ Task I** — causal effect across 5 seeds; fill §1.6 NEW-1 and confirm the next-step-KL non-separation replicates.
+1. **✅ Task C aggregation DONE** — see §1.1/1.5, A1/A7/A9/C1. Two items it surfaced:
+   - **within-balance INVERTS to 0.32 (not chance)** — PAPER.md's 0.506/chance line must be
+     corrected (A9). This is a *correction to a pilot number*, the most important thing this
+     pass found; do not ship the old 0.506 framing.
+   - **n=5 Wilcoxon is floored at p=0.0625** (cannot reach <0.05 with 5 paired seeds). Lead
+     with the pooled paired-bootstrap (p≈0 on the ensemble comparison) and the gap bootstrap
+     CIs; report Wilcoxon as "unanimous in direction, p=0.0625 (n=5 floor)," never as p<0.05.
+2. **✅ Task I DONE** — probe-decay replicates at the 100th percentile on **all 5 seeds** (flagship result generalizes). But **routing-flip is only 3/5** at the extreme (seeds 1,2 at 0th pct — a random direction flips routing more on those models). The paper must state the routing-flip causal result as **single-model / partial-across-seeds**, not a general causal claim. Next-step-KL non-separation replicates (5/5), confirming Task A's caveat.
 3. **Abstract A6 (boundary z_gate `(1−z_gate)` arithmetic)** — not directly tested; re-examine given the A4 z_gate correction. Lower confidence than the rest of the boundary story; the magnitude-effect framing (A5/Task E) is safer.
 4. **Task G distinct-measure partial** — the imagined-vs-real divergence measure did **not** separate from its null (32nd pct). Honest partial, reconciled with Task H, but worth a sentence in the paper so a reviewer doesn't read it as a hidden failure.
 5. **reacher within-task confound = 0.578** (vs cartpole 0.506) — the second-env signal is present but **less cleanly decoupled from task identity**. State this in Limitations; do not claim reacher is as clean as cartpole.
@@ -182,6 +211,6 @@ Format: *location — claim as written — status — corrected text (if needed)
 
 Detailed context-rich writeups (hypothesis, build, all numbers, mid-course findings, caveats,
 paper connection) live in `outputs/deliverables/`:
-`task_A_causal_intervention.md`, `task_B_zgate_causal.md`, `task_C_multiseed.md` ⏳,
+`task_A_causal_intervention.md`, `task_B_zgate_causal.md`, `task_C_multiseed.md`,
 `task_D_second_environment.md`, `task_E_boundary_scalar.md`, `task_F_probe_weighted_returns.md`,
-`task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md` ⏳.
+`task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md`.
