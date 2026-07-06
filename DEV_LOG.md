@@ -1871,3 +1871,65 @@ percentile: 98, 0, 0, 98, 100 (seeds 0–4). Per-seed next-KL percentile: 94, 84
 load-bearing) is now **replicated at the extreme of an empirical null on all 5 seeds**; the
 secondary routing-flip causal claim is **partially replicated (3/5)** and should be stated as
 such, not overclaimed. Raw: `outputs/causal/task_i_results.json`.
+
+---
+
+# Phase 1d — Closing the Remaining Gaps (2026-07-06)
+
+Four narrow gap-closing tasks (J, K, L, M) surfaced by a careful read of the completed
+1b/1c work. As always, nothing prior is altered; new evidence added alongside.
+
+## Task J — Third environment (pendulum) resolves the n=2 ambiguity
+
+With only cartpole (clean) and reacher (noisier), we could not tell whether reacher was
+the outlier or cartpole was. A third structurally different environment — **pendulum
+swingup** (obs_dim 3, single underactuated link, dynamics unlike both the cart-pole and
+the 2-link reacher) — resolves it. Full pipeline via the generalised `DMCEnv` wrapper +
+`run_second_env.py` (env-parametrised); `compare_environments.py` builds the 3-way table.
+
+| Metric | cartpole-swingup | reacher-easy | pendulum-swingup |
+|---|---|---|---|
+| obs_dim / act_dim | 5 / 1 | 6 / 2 | 3 / 1 |
+| Probe A held-out AUROC | 0.902 | 0.764 | 0.974 |
+| Probe A Set A AUROC | 0.863 | 0.723 | 0.985 |
+| **Probe A Set C AUROC** | **0.723** | **0.619** [0.564,0.679] | **0.322** [0.267,0.377] |
+| Within-task confound AUROC | 0.506 | 0.578 | 0.437 |
+| **C_t best γ** | 0.95 | 0.70 | 0.90 |
+| **C_t best R²** | 0.798 | 0.216 | **0.886** |
+| Null-space angle (°) | 88.0 | 89.4 | 88.1 |
+| Frac probe dir in top-10 PC | 0.090 | 0.002 | 0.015 |
+
+**The third point is genuinely different from both — and that is the informative outcome.**
+Pendulum does not resemble clean cartpole *or* noisier reacher; it has the **strongest**
+C_t encoding of all three (R² = 0.886) yet an **inverted** Set C AUROC (0.322, CI entirely
+below 0.5). This dissociation is the key finding.
+
+**What generalises across all three environments:**
+- **Null-space geometry: yes on all three** — angle 88.0/89.4/88.1°, ≤9% of probe variance
+  in the top-10 PCs everywhere. The most novel mechanistic claim is environment-general.
+- **The probe encodes the confusion integral C_t: yes on all three** — R² = 0.80/0.22/0.89,
+  each above its own KL baseline. h_t linearly carries accumulated confusion history in
+  every environment tested.
+
+**What does NOT generalise (environment-dependent):**
+- **Set C headline AUROC: 0.72 / 0.62 / 0.32** — it does not just weaken on pendulum, it
+  **inverts**. Crucially, pendulum has excellent C_t encoding (0.886) *and* an inverted Set C
+  — so the two are dissociated. The Set C AUROC depends on whether the recon-based C1/C2
+  labelling happens to align with confusion history *in that environment's dynamics*; it is a
+  property of the **Set C construction**, not of the confusion signal, which is strong on
+  pendulum by the direct C_t measure. (The within-task confound 0.437 and Probe C on Set C
+  0.467 invert together with it, confirming this is a Set-C-labelling effect, not a probe
+  failure.)
+- **Best γ: 0.95 / 0.70 / 0.90** — the closed-form memory constant is environment-dependent.
+- **C_t R²: 0.80 / 0.22 / 0.89** — spans a wide range (no ordering with obs_dim, action_dim,
+  or KL scale that holds across all three; r(confound-cleanliness, C_t R²) = +0.57, weak).
+
+**Resolution of the n=2 ambiguity.** Neither reacher nor cartpole was "the outlier." The
+correct, defensible statement is: **the confusion direction, the near-null-space geometry,
+and the linear encoding of C_t generalise across three structurally different environments;
+the specific closed-form parameters (γ, R²) and the Set C contrastive AUROC are
+environment-dependent and should be reported as cartpole-specific, not as general constants.**
+Pendulum in particular shows the Set C metric can invert even where the underlying C_t signal
+is strongest — a caution against treating Set C AUROC as the sole measure of the signal.
+Full results: `outputs/third_env/pendulum_swingup_results.json`,
+`outputs/third_env/three_env_comparison.json`.

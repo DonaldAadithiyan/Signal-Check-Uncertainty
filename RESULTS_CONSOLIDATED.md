@@ -4,12 +4,14 @@
 Someone who reads only this document should be able to correctly update every affected
 line of PAPER.md without re-reading DEV_LOG.md.
 
-**Last updated:** 2026-07-06 (Phase 1c — COMPLETE). All tasks A–I done; Task C and Task I
-numbers are filled in below.
+**Last updated:** 2026-07-06 (Phase 1d — COMPLETE). All tasks A–M done. Phase 1d added
+Task J (third env, pendulum → §1.2b), K (§1.6), L (§1.6), M (A6 resolved, §1.3); three
+prior open items (A6, Task-G distinct-measure, illusion-mitigation completeness) and the
+reacher-confound item are now RESOLVED — the open-items list is shorter than before this pass.
 
-**✅ PAPER.md reconciliation APPLIED (2026-07-06).** Every §2 prescription below has been
-written into PAPER.md (backup at `PAPER.md.bak`): abstract (A1 seed CI, A3 reacher clause,
-A4 z_gate→structural, A5 boundary magnitude, added causal sentence); contributions C2/C3 +
+**✅ PAPER.md reconciliation APPLIED (Phase 1c + 1d, 2026-07-06).** Every §2 prescription below
+is written into PAPER.md (backup at `PAPER.md.bak`). Phase 1c: abstract (A1 seed CI, A3 reacher,
+A4 z_gate→structural, A5 boundary magnitude, causal sentence); contributions C2/C3 +
 new contribution 6 (causal + attractor); §4.1 Table 1 within-balance 0.506→0.321 with the
 inversion footnote (A9); §4.3 geometry reframed to structural + Task B causal pointer; §4.6
 boundary magnitude-effect (Task E); new §4.7 (causal load-bearing, empirical null, robustness,
@@ -17,7 +19,12 @@ boundary magnitude-effect (Task E); new §4.7 (causal load-bearing, empirical nu
 §6.1 Limitations (reacher partial-replication, z_gate framing); §6.2 extended with the
 inference-time gate-override causal table (falsification preserved, not undone); §7 Related Work
 (Berger et al. reinforcing + Makelov illusion mitigations); §8 conclusion; 2 references added.
-Note left for author: Berger et al. citation needs full venue/year/initials.
+Phase 1d edits: abstract causal sentence extended (swap intervention + forward-dynamics
+dissociation); §4.6 boundary "Mechanistic basis" upgraded to Task M's causal magnitude-vs-
+separability result (A6); §4.7 upgraded to a **four-way** illusion defense (added Task L swap)
+plus a forward-dynamics-dissociation paragraph (Task K second distinct measure); §6.1
+Limitations rewritten for **three** environments with the structure-generalizes / specifics-
+don't pattern (Task J). Note left for author: Berger et al. citation needs full venue/year/initials.
 
 Provenance key: P1 = Phase 1 (pilot), P1b = Phase 1b, P1c = Phase 1c. DEV_LOG section
 names in parentheses.
@@ -50,10 +57,26 @@ mean±std it is shown in the "seeds" column once available.
 
 | Metric | Value | n / spread | Source |
 |---|---|---|---|
-| Best γ (cartpole) | 0.95 | n=1; 5-seed ⏳ (seed0 0.95) | P1 (§4.2) |
-| R²(probe ~ C_t) (cartpole) | 0.80 | n=1; 5-seed ⏳ (seed0 0.76) | P1 (§4.2) |
+| Best γ (cartpole) | 0.95 | n=1; **5-seed: 0.95 on ALL 5** | P1 (§4.2), P1b Task C |
+| R²(probe ~ C_t) (cartpole) | 0.80 | n=1; **5-seed 0.763 ± 0.045** | P1 (§4.2), P1b Task C |
 | Best γ (reacher) | 0.70 | n=1 | P1c Task D |
 | R²(probe ~ C_t) (reacher) | 0.216 | n=1 | P1c Task D |
+| Best γ (pendulum) | 0.90 | n=1 | **P1d Task J** |
+| R²(probe ~ C_t) (pendulum) | **0.886** | n=1 (highest of 3 envs) | **P1d Task J** |
+
+### 1.2b Three-environment generality (Task J resolves the n=2 ambiguity)
+
+| Metric | cartpole | reacher | pendulum | generalizes? |
+|---|---|---|---|---|
+| Probe A held-out AUROC | 0.902 | 0.764 | 0.974 | yes (strong ID everywhere) |
+| **Set C AUROC** | 0.723 | 0.619 | **0.322 (inverts!)** | **NO — environment-dependent** |
+| Within-task confound | 0.506 | 0.578 | 0.437 | ~chance, wanders both ways |
+| **C_t best R²** | 0.798 | 0.216 | 0.886 | signal present all 3; R² **env-dependent** |
+| **C_t best γ** | 0.95 | 0.70 | 0.90 | **env-dependent** (not a universal constant) |
+| Null-space angle (°) | 88.0 | 89.4 | 88.1 | **YES** (near-orthogonal all 3) |
+| Frac in top-10 PC | 0.090 | 0.002 | 0.015 | **YES** (near-null-space all 3) |
+
+**Pattern:** the confusion **direction**, the **null-space geometry**, and the **linear encoding of C_t** generalize across all three; the **Set C AUROC** and the **closed-form γ/R²** are environment-dependent. Pendulum is the decisive case — it has the *strongest* C_t encoding (0.886) yet an *inverted* Set C (0.322), dissociating the two and proving Set C's inversion is a construction artefact (recon-based labelling anti-aligns with confusion in pendulum's dynamics), not an absence of signal. Neither reacher nor cartpole was the outlier.
 
 ### 1.3 Null-space geometry
 
@@ -63,6 +86,8 @@ mean±std it is shown in the "seeds" column once available.
 | Frac probe variance in top PCs (cartpole) | ~9% (top-50) / 0.5% (top-10) | n=1 | P1, P1b/c |
 | Angle probe→top-10 PCs (reacher) | 89.4° | n=1 | P1c Task D |
 | Frac in top-10 PC (reacher) | 0.17% | n=1 | P1c Task D |
+| Angle probe→top-10 PCs (pendulum) | 88.1° | n=1 | **P1d Task J** |
+| Frac in top-10 PC (pendulum) | 1.5% | n=1 | **P1d Task J** |
 | **z_gate causal: angle span across forced z∈[0.5,0.99]** | **1.29°** (min 88.5°, ≤1.9% in top-10 at all z) | 7 forced-z values, 1 frozen model | **P1b Task B** |
 | **Boundary z_gate causal: ‖h‖-separability vs (1−z) overwrite** | r=+0.97 (‖h‖ 0.97→0.51 as z 0.5→0.99) — magnitude YES | 7 forced-z values | **P1d Task M** |
 | Boundary z_gate causal: full-probe AUROC vs forced z | **1.0000 at every z** (span 0.000) — separability NOT gate-driven | 7 forced-z values | **P1d Task M** |
@@ -184,7 +209,7 @@ Format: *location — claim as written — status — corrected text (if needed)
 
 - **NEW-1 (Task A/G/I/L):** the confusion direction is **causally load-bearing** — ablation collapses the readout (−0.575 vs −0.004 random), at the **100th percentile of a 50-direction empirical null** (z=−23/+31), degrading gracefully under perturbation, and **replicating at the 100th percentile on all 5 seeds** (Task I). It survives **two structurally different intervention types**: synthetic ablation AND real-content substitution (Task L swap: −0.761 vs ablation −0.581, both 100th pct) — a strong defense against the Makelov/Sklar illusion. The routing-flip effect is **partial across seeds (3/5)**; next-step-KL does not separate (consistent with Task A).
 - **NEW-2 (Task B):** the null-space geometry is **causally z-independent** (single frozen model, gate forced 0.5–0.99).
-- **NEW-3 (Task D/J):** the confusion direction and null-space geometry **generalize across three environments** (cartpole, reacher, pendulum); the closed-form C_t parameters (γ, R²) are environment-dependent [Task J fills the specifics].
+- **NEW-3 (Task D/J):** the confusion direction, null-space geometry, AND the linear encoding of C_t **generalize across three structurally different environments** (cartpole, reacher, pendulum — obs 5/6/3, act 1/2/1). But the **Set C AUROC (0.72/0.62/0.32 — inverts on pendulum)** and the **closed-form γ/R² (0.95/0.70/0.90; R² 0.80/0.22/0.89)** are **environment-dependent**. Pendulum dissociates them: strongest C_t encoding (R²=0.89) yet inverted Set C (0.32) → the Set C inversion is a construction artefact, not absence of signal. Claim generality for direction/geometry/C_t-encoding; scope Set C and the specific γ/R² to cartpole.
 - **NEW-4 (Task H):** the confusion signal is **REINFORCING** with Biased Dreams' attractor/reward-overestimation phenomenon (r=+0.39 latent gap, r=+0.48 reward gap) — independent support.
 - **NEW-5 (Task K):** a **second** mechanistically-distinct forward-dynamics measure (decoder reconstruction of the next real obs) **also does not separate** from the null (z=−0.7) — with Task G's divergence result, two independent measures agree that the confusion direction is not the causal lever for dynamics accuracy. The signal *reads* problematic states (Task H) without *being* the dynamics mechanism.
 - **NEW-6 (Task M):** the boundary's `(1−z_gate)` arithmetic causally explains the **magnitude** component (‖h‖-separability tracks overwrite fraction, r=+0.97) but **not** the perfect separability (full probe = 1.0 at every forced z) — see A6.
@@ -210,7 +235,7 @@ Format: *location — claim as written — status — corrected text (if needed)
 3. **✅ RESOLVED — Abstract A6 (boundary z_gate arithmetic)** — Task M tested it causally. The `(1−z_gate)` arithmetic explains the **magnitude** component (‖h‖ separability, r=+0.97) but not the perfect separability (full probe 1.0 at every z). REWRITE per A6 above (claim magnitude only). No longer open.
 4. **✅ RESOLVED — Task G distinct-measure partial** — Task K added a second distinct measure (decoder recon on next real obs) which **also** does not separate (z=−0.7). The two agreeing turns "one partial measure" into a positive dissociation result (NEW-5). State plainly; no longer a loose end.
 5. **✅ RESOLVED — illusion-mitigation completeness** — Task L added the real-content-substitution intervention (swap) Task G had substituted away; it agrees with ablation at the 100th percentile. The Task G mitigation set is now complete against its own spec (empirical null + distinct measures + robustness + real-content substitution). No longer open.
-6. **reacher within-task confound = 0.578** (vs cartpole 0.506) — second-env signal present but **less cleanly decoupled from task identity**. [Task J adds a third env — check whether pendulum's confound cleanliness sides with cartpole or reacher; update this item with the 3-env pattern.] State in Limitations.
+6. **✅ RESOLVED — reacher within-task confound** — Task J's third environment shows the within-task confound is not a special reacher problem: across three environments it wanders around chance (0.51/0.58/0.44) and, more importantly, **Set C itself is environment-dependent and inverts on pendulum** (0.32) even though C_t encoding there is the strongest (R²=0.89). The correct framing (now in §1.2b/NEW-3): direction+geometry+C_t generalize; Set C AUROC and γ/R² are cartpole-specific. Not a loose end — a characterized 3-env pattern.
 7. **Reward proxy in Task H** — no trained reward head; overestimation uses a cartpole upright-reward proxy from the decoded obs. Direction/correlation robust; absolute magnitude is proxy-dependent.
 8. **Amplification ceiling (Task A)** — positive-α effect saturates at the probe's sigmoid ceiling; not a weakness, but the positive and negative arms are not symmetric.
 9. **Task M override caveat** — forced-z imagination is *more* separable than natural (full 1.0 vs 0.887); the override fixes z at every imagined step. Doesn't affect the magnitude-vs-separability conclusion (read from the ‖h‖ trend), but note it.
@@ -223,4 +248,6 @@ Detailed context-rich writeups (hypothesis, build, all numbers, mid-course findi
 paper connection) live in `outputs/deliverables/`:
 `task_A_causal_intervention.md`, `task_B_zgate_causal.md`, `task_C_multiseed.md`,
 `task_D_second_environment.md`, `task_E_boundary_scalar.md`, `task_F_probe_weighted_returns.md`,
-`task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md`.
+`task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md`,
+`task_J_third_environment.md`, `task_K_decoder_recon.md`, `task_L_swap_intervention.md`,
+`task_M_boundary_zgate_causal.md`.
