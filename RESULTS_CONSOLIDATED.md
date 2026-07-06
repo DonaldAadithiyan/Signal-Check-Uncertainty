@@ -4,10 +4,11 @@
 Someone who reads only this document should be able to correctly update every affected
 line of PAPER.md without re-reading DEV_LOG.md.
 
-**Last updated:** 2026-07-06 (Phase 1d — COMPLETE). All tasks A–M done. Phase 1d added
-Task J (third env, pendulum → §1.2b), K (§1.6), L (§1.6), M (A6 resolved, §1.3); three
-prior open items (A6, Task-G distinct-measure, illusion-mitigation completeness) and the
-reacher-confound item are now RESOLVED — the open-items list is shorter than before this pass.
+**Last updated:** 2026-07-06 (Phase 1e — COMPLETE). All tasks A–P done. Phase 1e added
+Task N (Set C inversion mechanism → §1.2b), O (closes open-item 9), P (§1.8, alongside Task F).
+Cumulative through 1d: J (§1.2b), K/L (§1.6), M (A6 resolved, §1.3); resolved open items A6,
+Task-G distinct-measure, illusion-mitigation completeness, reacher-confound, and now the Task-M
+boundary discrepancy (item 9) — the open-items list keeps shrinking as loops close.
 
 **✅ PAPER.md reconciliation APPLIED (Phase 1c + 1d, 2026-07-06).** Every §2 prescription below
 is written into PAPER.md (backup at `PAPER.md.bak`). Phase 1c: abstract (A1 seed CI, A3 reacher,
@@ -77,6 +78,18 @@ mean±std it is shown in the "seeds" column once available.
 | Frac in top-10 PC | 0.090 | 0.002 | 0.015 | **YES** (near-null-space all 3) |
 
 **Pattern:** the confusion **direction**, the **null-space geometry**, and the **linear encoding of C_t** generalize across all three; the **Set C AUROC** and the **closed-form γ/R²** are environment-dependent. Pendulum is the decisive case — it has the *strongest* C_t encoding (0.886) yet an *inverted* Set C (0.322), dissociating the two and proving Set C's inversion is a construction artefact (recon-based labelling anti-aligns with confusion in pendulum's dynamics), not an absence of signal. Neither reacher nor cartpole was the outlier.
+
+**Mechanism of the Set C inversion (Task N, P1e) — tested, ordered across the 3 envs.** The
+predictor is the **within-KL-bin correlation between per-step recon error and C_t**: Set C splits
+C1/C2 by recon *within KL bins*, so whether the high-recon C2 group is also high-confusion
+determines whether the recon label agrees with the probe. This correlation is **+0.39 (cartpole) →
+−0.09 (reacher) → −0.12 (pendulum)** — monotone with Set C AUROC (0.72 → 0.62 → 0.32). On pendulum
+recon and C_t *anti*-correlate within KL bins, so the label runs opposite to confusion → inverted
+AUROC. (Two nuances: (i) the brief's kinematic-instant hypothesis was **ruled out** — recon is not
+kinematic-dominated on pendulum; cartpole is the kinematic-dominated one yet its Set C works.
+(ii) at matched KL, KL already captures most of C_t on pendulum (r(KL,C_t)=0.67), so Set C is a
+low-signal test there regardless of label — relabelling by C_t only reaches 0.53.) **Takeaway for a
+reader: check the within-KL-bin sign of recon↔C_t to predict whether recon-based Set C will work.**
 
 ### 1.3 Null-space geometry
 
@@ -155,6 +168,7 @@ gap's bootstrap CI, which is comfortably above 0.)
 | Imagination-depth probe | **NULL** (0.4994, no depth signal) | P1 |
 | Probe-weighted returns (binary) | **NEGATIVE** (Δr=−0.53) | P1 |
 | Probe-weighted returns (continuous C_t) | **NEGATIVE, stronger** (Δr=−0.576, CI<0) | P1b Task F |
+| Confusion as imagination **stopping rule** | **NULL** (Δr=+0.005±0.009, sign-unstable 4/5) — structurally different from Task F weighting; doesn't hurt but doesn't help | **P1e Task P** |
 | Task G distinct divergence measure | **PARTIAL** (did not separate, 32nd pct) | P1c Task G |
 
 ---
@@ -238,7 +252,7 @@ Format: *location — claim as written — status — corrected text (if needed)
 6. **✅ RESOLVED — reacher within-task confound** — Task J's third environment shows the within-task confound is not a special reacher problem: across three environments it wanders around chance (0.51/0.58/0.44) and, more importantly, **Set C itself is environment-dependent and inverts on pendulum** (0.32) even though C_t encoding there is the strongest (R²=0.89). The correct framing (now in §1.2b/NEW-3): direction+geometry+C_t generalize; Set C AUROC and γ/R² are cartpole-specific. Not a loose end — a characterized 3-env pattern.
 7. **Reward proxy in Task H** — no trained reward head; overestimation uses a cartpole upright-reward proxy from the decoded obs. Direction/correlation robust; absolute magnitude is proxy-dependent.
 8. **Amplification ceiling (Task A)** — positive-α effect saturates at the probe's sigmoid ceiling; not a weakness, but the positive and negative arms are not symmetric.
-9. **Task M override caveat** — forced-z imagination is *more* separable than natural (full 1.0 vs 0.887); the override fixes z at every imagined step. Doesn't affect the magnitude-vs-separability conclusion (read from the ‖h‖ trend), but note it.
+9. **✅ RESOLVED — Task M natural-boundary discrepancy (0.887 vs 1.0000)** — Task O (P1e) isolated the cause: **imagination depth is dominant** (5→15 steps, +0.082) plus a **real-state-source effect** (held-out training states vs fresh collect_real, +0.02 avg but larger at shallow depth; depth-1 with fresh reals is 0.46, below chance). Task E/C's 1.0000 is the deep-imagination + held-out-training-reals corner; Task M's 0.887 is the shallow + fresh-reals corner — different populations, both correct for their protocol. **Framing fix for PAPER:** report the boundary AUROC *with its protocol* (not a bare "1.0000") and note separability grows with imagination depth. Task M's forced-z magnitude-vs-separability conclusion is unaffected (internally consistent within its own protocol). No longer open.
 
 ---
 
@@ -250,4 +264,5 @@ paper connection) live in `outputs/deliverables/`:
 `task_D_second_environment.md`, `task_E_boundary_scalar.md`, `task_F_probe_weighted_returns.md`,
 `task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md`,
 `task_J_third_environment.md`, `task_K_decoder_recon.md`, `task_L_swap_intervention.md`,
-`task_M_boundary_zgate_causal.md`.
+`task_M_boundary_zgate_causal.md`, `task_N_setc_inversion_mechanism.md`,
+`task_O_boundary_discrepancy.md`, `task_P_stopping_rule.md`.
