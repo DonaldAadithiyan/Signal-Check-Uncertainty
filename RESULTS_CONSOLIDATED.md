@@ -64,6 +64,8 @@ mean±std it is shown in the "seeds" column once available.
 | Angle probe→top-10 PCs (reacher) | 89.4° | n=1 | P1c Task D |
 | Frac in top-10 PC (reacher) | 0.17% | n=1 | P1c Task D |
 | **z_gate causal: angle span across forced z∈[0.5,0.99]** | **1.29°** (min 88.5°, ≤1.9% in top-10 at all z) | 7 forced-z values, 1 frozen model | **P1b Task B** |
+| **Boundary z_gate causal: ‖h‖-separability vs (1−z) overwrite** | r=+0.97 (‖h‖ 0.97→0.51 as z 0.5→0.99) — magnitude YES | 7 forced-z values | **P1d Task M** |
+| Boundary z_gate causal: full-probe AUROC vs forced z | **1.0000 at every z** (span 0.000) — separability NOT gate-driven | 7 forced-z values | **P1d Task M** |
 
 ### 1.4 obs/imagination boundary (Task E reframe)
 
@@ -89,7 +91,7 @@ top-25%-KL events on a different held-out sample; the **probe > recon ordering**
 and it replicates on all 5 seeds. (See §4 open-item on the n=5 Wilcoxon floor — lead with the
 gap's bootstrap CI, which is comfortably above 0.)
 
-### 1.6 Causal intervention (Task A) + hardening (Tasks G, I)
+### 1.6 Causal intervention (Task A) + hardening (Tasks G, I, K, L)
 
 | Metric | Value | n / spread / percentile | Source |
 |---|---|---|---|
@@ -100,7 +102,10 @@ gap's bootstrap CI, which is comfortably above 0.)
 | **Confusion dir percentile vs 50-dir null (probe-decay)** | **100th** (z=−22.9) | 50 random dirs, 600 sites | **P1c Task G** |
 | **Confusion dir percentile vs 50-dir null (routing)** | **100th** (z=+30.6) | 50 random dirs, 600 sites | **P1c Task G** |
 | Distinct measure (latent divergence) vs null | 32nd pct (z=−0.6) — **partial** | 25 random dirs | P1c Task G |
+| Distinct measure #2 (decoder recon on next REAL obs) vs null | 64th/56th pct (z=−0.7/−0.6) — **does not separate** | 600 sites, 50-dir null | **P1d Task K** |
 | Robustness: effect retained at 0.25 dir-rotation | 58% | mean of 5 rotations | P1c Task G |
+| **Swap intervention** (real-content substitution) probe-decay@t | **−0.761, 100th pct** (vs ablation −0.581) | 600 sites, 50-dir null, ⊥v match cos=0.86 | **P1d Task L** |
+| Swap intervention routing flip | +0.868, 100th pct (vs ablation +0.807) | 600 sites | **P1d Task L** |
 | Probe/C_t direction consistency | cos=0.778 (38.9°) | — | P1b Task A |
 | **Causal probe-decay replicated across 5 seeds** | Δprobe@t = −0.385 ± 0.118, **100th pct on ALL 5** | n=5, each vs own 50-dir null | **P1c Task I** |
 | Causal routing-flip across 5 seeds | +0.395 ± 0.133, **59th pct mean (3/5 separate)** — partial | n=5 | **P1c Task I** |
@@ -153,7 +158,8 @@ Format: *location — claim as written — status — corrected text (if needed)
   Status: **ACCURATE but reframe.** Task E: this is **largely a magnitude effect** — a single scalar (‖h_t‖ 0.976, best coord 0.988) nearly separates the classes. Add a clause: "…1.0000 AUROC; this separation is largely a magnitude effect — ‖h_t‖ alone reaches 0.976 — rather than a distributed direction (Task E)."
 
 - **A6 — "its immediate saturation predicted exactly by z_gate: after one imagination step, (1−z_gate)^1 = 0.06 of the original posterior content remains."**
-  Status: **⚠️ RE-EXAMINE.** This is a *different* z_gate claim (about the boundary, not the confusion geometry). It is not directly tested by Task B (which tests the confusion-direction geometry). Keep, but flag in Open Items — given A4's correction, any z_gate-mechanism language deserves scrutiny. The boundary being a magnitude effect (A5) is the more defensible framing.
+  Status: **✅ RESOLVED by Task M (causal forced-z sweep) — REWRITE, do not keep as-is and do not fully cut.** Task M shows the `(1−z_gate)` arithmetic is a **correct account of the MAGNITUDE component**: ‖h‖-based separability tracks the overwrite fraction exactly (r=+0.97; ‖h‖-AUROC falls 0.97→0.51 as forced z goes 0.5→0.99). **But it is NOT what makes real-vs-imagined separable** — the full linear probe stays at AUROC 1.0000 at *every* forced z, so perfect separability is gate-independent (it is the Task E magnitude effect, achievable by a linear probe regardless of overwriting).
+  **Corrected text:** "The magnitude of h_t shifts as the (1−z_gate) overwrite arithmetic predicts — forcing the update gate across 0.5–0.99 moves ‖h_t‖-based real-vs-imagined separability from 0.97 to chance in lock-step with the overwrite fraction (r=+0.97, Task M). This magnitude shift, however, is not what makes the classes separable: a linear probe achieves AUROC 1.0000 at every forced gate value, so the perfect separability is the (gate-independent) magnitude effect of §4.6, not a consequence of the specific (1−z_gate)^1=0.06 arithmetic." (Claim the magnitude mechanism with causal backing; drop the implication that it explains the 1.0000.)
 
 - **A7 — "routing … outperforms recon-threshold baselines at 30% query rate (0.818 vs 0.770 recall), capturing 81% of the KL oracle's advantage."**
   Status: **ACCURATE and REPLICATED (ordering).** Probe A > recon on **all 5 seeds**; the gap is **+0.065, bootstrap 95% CI [+0.058, +0.072]** (comfortably above 0). The 0.818/0.770 pilot point estimates stand for the pilot's specific setup; add "the probe-over-recon advantage replicates across 5 seeds (gap +0.065, CI [+0.058,+0.072])." Report the Wilcoxon as *directionally unanimous, p=0.0625 (the n=5 floor)* — do **not** claim p<0.05 across seeds; lead with the bootstrap CI.
@@ -174,12 +180,14 @@ Format: *location — claim as written — status — corrected text (if needed)
 - **C5 (contribution 5) — routing + boundary as second orthogonal signal.** ACCURATE; reframe boundary per A5.
 - **§1 body — "88.2° … only 9% of the probe's direction in the top-50-PC subspace … consistent with GRU update-gate saturation."** Same z_gate correction as A4/C3.
 
-### New contributions to ADD (from Phase 1b/1c)
+### New contributions to ADD (from Phase 1b/1c/1d)
 
-- **NEW-1 (Task A/G/I):** the confusion direction is **causally load-bearing** — ablation collapses the readout (−0.575 vs −0.004 random), at the **100th percentile of a 50-direction empirical null** (z=−23/+31), degrading gracefully under perturbation (Makelov/Sklar illusion checks passed), and **the probe-decay effect replicates at the 100th percentile on all 5 independently-trained seeds** (Task I). The routing-flip effect (80% on the main model) is **partial across seeds (3/5 at the extreme)** — state as single-model/partial, not general. Next-step-KL does not cleanly separate on any seed (consistent with Task A).
+- **NEW-1 (Task A/G/I/L):** the confusion direction is **causally load-bearing** — ablation collapses the readout (−0.575 vs −0.004 random), at the **100th percentile of a 50-direction empirical null** (z=−23/+31), degrading gracefully under perturbation, and **replicating at the 100th percentile on all 5 seeds** (Task I). It survives **two structurally different intervention types**: synthetic ablation AND real-content substitution (Task L swap: −0.761 vs ablation −0.581, both 100th pct) — a strong defense against the Makelov/Sklar illusion. The routing-flip effect is **partial across seeds (3/5)**; next-step-KL does not separate (consistent with Task A).
 - **NEW-2 (Task B):** the null-space geometry is **causally z-independent** (single frozen model, gate forced 0.5–0.99).
-- **NEW-3 (Task D):** the signal and the null-space geometry **replicate on reacher** (different dynamics, obs 6/act 2); the closed-form C_t is cartpole-specific.
+- **NEW-3 (Task D/J):** the confusion direction and null-space geometry **generalize across three environments** (cartpole, reacher, pendulum); the closed-form C_t parameters (γ, R²) are environment-dependent [Task J fills the specifics].
 - **NEW-4 (Task H):** the confusion signal is **REINFORCING** with Biased Dreams' attractor/reward-overestimation phenomenon (r=+0.39 latent gap, r=+0.48 reward gap) — independent support.
+- **NEW-5 (Task K):** a **second** mechanistically-distinct forward-dynamics measure (decoder reconstruction of the next real obs) **also does not separate** from the null (z=−0.7) — with Task G's divergence result, two independent measures agree that the confusion direction is not the causal lever for dynamics accuracy. The signal *reads* problematic states (Task H) without *being* the dynamics mechanism.
+- **NEW-6 (Task M):** the boundary's `(1−z_gate)` arithmetic causally explains the **magnitude** component (‖h‖-separability tracks overwrite fraction, r=+0.97) but **not** the perfect separability (full probe = 1.0 at every forced z) — see A6.
 
 ---
 
@@ -199,11 +207,13 @@ Format: *location — claim as written — status — corrected text (if needed)
      with the pooled paired-bootstrap (p≈0 on the ensemble comparison) and the gap bootstrap
      CIs; report Wilcoxon as "unanimous in direction, p=0.0625 (n=5 floor)," never as p<0.05.
 2. **✅ Task I DONE** — probe-decay replicates at the 100th percentile on **all 5 seeds** (flagship result generalizes). But **routing-flip is only 3/5** at the extreme (seeds 1,2 at 0th pct — a random direction flips routing more on those models). The paper must state the routing-flip causal result as **single-model / partial-across-seeds**, not a general causal claim. Next-step-KL non-separation replicates (5/5), confirming Task A's caveat.
-3. **Abstract A6 (boundary z_gate `(1−z_gate)` arithmetic)** — not directly tested; re-examine given the A4 z_gate correction. Lower confidence than the rest of the boundary story; the magnitude-effect framing (A5/Task E) is safer.
-4. **Task G distinct-measure partial** — the imagined-vs-real divergence measure did **not** separate from its null (32nd pct). Honest partial, reconciled with Task H, but worth a sentence in the paper so a reviewer doesn't read it as a hidden failure.
-5. **reacher within-task confound = 0.578** (vs cartpole 0.506) — the second-env signal is present but **less cleanly decoupled from task identity**. State this in Limitations; do not claim reacher is as clean as cartpole.
-6. **Reward proxy in Task H** — no trained reward head; overestimation uses a cartpole upright-reward proxy from the decoded obs. Direction/correlation robust; absolute magnitude is proxy-dependent.
-7. **Amplification ceiling (Task A)** — positive-α effect saturates at the probe's sigmoid ceiling; not a weakness, but the positive and negative arms are not symmetric.
+3. **✅ RESOLVED — Abstract A6 (boundary z_gate arithmetic)** — Task M tested it causally. The `(1−z_gate)` arithmetic explains the **magnitude** component (‖h‖ separability, r=+0.97) but not the perfect separability (full probe 1.0 at every z). REWRITE per A6 above (claim magnitude only). No longer open.
+4. **✅ RESOLVED — Task G distinct-measure partial** — Task K added a second distinct measure (decoder recon on next real obs) which **also** does not separate (z=−0.7). The two agreeing turns "one partial measure" into a positive dissociation result (NEW-5). State plainly; no longer a loose end.
+5. **✅ RESOLVED — illusion-mitigation completeness** — Task L added the real-content-substitution intervention (swap) Task G had substituted away; it agrees with ablation at the 100th percentile. The Task G mitigation set is now complete against its own spec (empirical null + distinct measures + robustness + real-content substitution). No longer open.
+6. **reacher within-task confound = 0.578** (vs cartpole 0.506) — second-env signal present but **less cleanly decoupled from task identity**. [Task J adds a third env — check whether pendulum's confound cleanliness sides with cartpole or reacher; update this item with the 3-env pattern.] State in Limitations.
+7. **Reward proxy in Task H** — no trained reward head; overestimation uses a cartpole upright-reward proxy from the decoded obs. Direction/correlation robust; absolute magnitude is proxy-dependent.
+8. **Amplification ceiling (Task A)** — positive-α effect saturates at the probe's sigmoid ceiling; not a weakness, but the positive and negative arms are not symmetric.
+9. **Task M override caveat** — forced-z imagination is *more* separable than natural (full 1.0 vs 0.887); the override fixes z at every imagined step. Doesn't affect the magnitude-vs-separability conclusion (read from the ‖h‖ trend), but note it.
 
 ---
 
