@@ -129,6 +129,26 @@ top-25%-KL events on a different held-out sample; the **probe > recon ordering**
 and it replicates on all 5 seeds. (See §4 open-item on the n=5 Wilcoxon floor — lead with the
 gap's bootstrap CI, which is comfortably above 0.)
 
+**Cross-environment routing (Task Q, P1f) — the win is NOT universal.** Routing recall@30%
+vs the recon-error oracle, two router variants (Probe-A = logistic on binary KL; C_t-direct =
+Ridge on continuous C_t), held-out N=40k each, non-overlapping CIs throughout:
+
+| env | Probe-A | C_t-direct | recon-oracle | Probe-A gap vs recon |
+|---|---|---|---|---|
+| cartpole | 0.682 | 0.663 | 0.642 | **+0.040** (beats) |
+| **reacher** | 0.511 | 0.411 | 0.587 | **−0.077 (LOSES)** |
+| pendulum | **0.778** | 0.744 | 0.481 | **+0.297 (beats, strongly)** |
+
+Key findings: (1) the confusion router **beats the recon oracle on 2 of 3 envs (cartpole,
+pendulum) but LOSES on reacher** — routing is *not* environment-universal; scope the abstract's
+"any trained world model" accordingly. (2) On **pendulum, routing is robust (+0.30) despite Set C
+inverting (0.32)** — the cleanest proof that Set C's inversion is an evaluation-construction
+artefact, not a signal-usefulness problem (routing scores against KL events directly, immune to
+the recon-based labelling). (3) The **Task-N dissociation prediction did NOT hold**: Probe-A and
+C_t-direct move *together* everywhere (both win cartpole+pendulum, both lose reacher); C_t-direct
+is consistently *slightly worse* than Probe-A, so no router change is warranted. (4) Reacher's
+limitation is mechanistic: its recon oracle (0.587) is an unusually strong routing baseline.
+
 ### 1.6 Causal intervention (Task A) + hardening (Tasks G, I, K, L)
 
 | Metric | Value | n / spread / percentile | Source |
