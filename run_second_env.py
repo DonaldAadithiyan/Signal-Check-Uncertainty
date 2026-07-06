@@ -39,13 +39,16 @@ from src.env.dmc_wrapper import DMCEnv
 from src.probe.linear_probe import binarise_by_median, train_probe, auroc
 from src.probe.intervention import compute_ct, bootstrap_auroc_ci
 
-DOMAIN, TASK      = 'reacher', 'easy'
+# Env-parametrised via env vars so the same proven pipeline runs for a third
+# environment (Task J) without duplicating code. Defaults reproduce the reacher run.
+DOMAIN            = os.environ.get('SC_DOMAIN', 'reacher')
+TASK              = os.environ.get('SC_TASK', 'easy')
 OOD_TASK          = 'hard'          # different-task states for the strong contrastive
 ENV_LABEL         = f'{DOMAIN}_{TASK}'
 GAMMAS            = [0.70, 0.80, 0.90, 0.95, 0.99]
 MAX_LAG           = 50
 N_EP              = 20
-OUT_DIR           = 'outputs/second_env'
+OUT_DIR           = os.environ.get('SC_OUTDIR', 'outputs/second_env')
 CKPT              = os.path.join(OUT_DIR, f'{ENV_LABEL}_world_model.pt')
 STATES            = os.path.join(OUT_DIR, f'{ENV_LABEL}_training_states.npz')
 
@@ -174,8 +177,10 @@ def null_space_geometry(h, kl, top_k=10):
 
 def main():
     cfg = XS_CONFIG.copy()
-    # reacher has 6-dim obs / 2-dim act — override the cartpole defaults
-    cfg['obs_dim'], cfg['act_dim'] = 6, 2
+    # derive obs/act dims from the actual environment (works for any DMCEnv)
+    _probe_env = DMCEnv(DOMAIN, TASK, seed=0)
+    cfg['obs_dim'], cfg['act_dim'] = _probe_env.obs_dim, _probe_env.act_dim
+    print(f"[{ENV_LABEL}] obs_dim={cfg['obs_dim']} act_dim={cfg['act_dim']}")
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # ── train or load ──
