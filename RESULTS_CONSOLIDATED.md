@@ -104,6 +104,15 @@ reader: check the within-KL-bin sign of recon↔C_t to predict whether recon-bas
 | **z_gate causal: angle span across forced z∈[0.5,0.99]** | **1.29°** (min 88.5°, ≤1.9% in top-10 at all z) | 7 forced-z values, 1 frozen model | **P1b Task B** |
 | **Boundary z_gate causal: ‖h‖-separability vs (1−z) overwrite** | r=+0.97 (‖h‖ 0.97→0.51 as z 0.5→0.99) — magnitude YES | 7 forced-z values | **P1d Task M** |
 | Boundary z_gate causal: full-probe AUROC vs forced z | **1.0000 at every z** (span 0.000) — separability NOT gate-driven | 7 forced-z values | **P1d Task M** |
+| **Scale check (deter=512, 2× XS width): null-space angle** | **89.4°** (frac in top-10 PC 0.13%) — geometry SURVIVES | 1 model | **P1f Task S** |
+| Scale check (deter=512): causal ablation | confusion Δprobe@t **−0.287** vs random **−0.050** — causal SURVIVES | 320 sites, 1 random control | **P1f Task S** |
+
+**Scale note (Task S):** the two most load-bearing findings (null-space geometry + causal
+ablation) hold at 2× the XS GRU width (deter=512, 4.8M params, held-out AUROC 0.853). ONE
+intermediate data point — partial evidence the findings are not XS-width-specific, NOT a
+resolution of the scale question (still 3 orders of magnitude below the full DreamerV3, single
+seed, light single-control ablation). PAPER §6.1 scale caveat should be updated from "untested"
+to "holds at one intermediate scale beyond XS; open at full scale."
 
 ### 1.4 obs/imagination boundary (Task E reframe)
 
