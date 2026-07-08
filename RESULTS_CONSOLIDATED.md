@@ -4,8 +4,12 @@
 Someone who reads only this document should be able to correctly update every affected
 line of PAPER.md without re-reading DEV_LOG.md.
 
-**Last updated:** 2026-07-06 (Phase 1e — COMPLETE). All tasks A–P done. Phase 1e added
-Task N (Set C inversion mechanism → §1.2b), O (closes open-item 9), P (§1.8, alongside Task F).
+**Last updated:** 2026-07-08 (Phase 1f — COMPLETE). All tasks A–S done. Phase 1f added
+Task Q (cross-env routing → §1.5; routing beats recon on 2/3 envs, loses on reacher; abstract/
+intro/conclusion scoped), R (multi-seed reacher+pendulum → §1.2b; pendulum Set C inversion
+seed-STABLE, reacher within-task seed-VARIABLE), S (scale check deter=512 → §1.3; both findings
+hold at 2× width). Prior: Phase 1e added Task N (Set C inversion mechanism → §1.2b), O (closes
+open-item 9), P (§1.8, alongside Task F).
 Cumulative through 1d: J (§1.2b), K/L (§1.6), M (A6 resolved, §1.3); resolved open items A6,
 Task-G distinct-measure, illusion-mitigation completeness, reacher-confound, and now the Task-M
 boundary discrepancy (item 9) — the open-items list keeps shrinking as loops close.
@@ -25,7 +29,9 @@ dissociation); §4.6 boundary "Mechanistic basis" upgraded to Task M's causal ma
 separability result (A6); §4.7 upgraded to a **four-way** illusion defense (added Task L swap)
 plus a forward-dynamics-dissociation paragraph (Task K second distinct measure); §6.1
 Limitations rewritten for **three** environments with the structure-generalizes / specifics-
-don't pattern (Task J). Note left for author: Berger et al. citation needs full venue/year/initials.
+don't pattern (Task J).
+
+**Final reconciliation pass (2026-07-08):** abstract, intro contributions, and conclusion audited line-by-line against all 19 task deliverables. Changes: (a) added a three-environment generality statement + new **contribution 7** (Tasks D/J/N/R) — pendulum's seed-stable Set C inversion and the within-KL-bin mechanism now appear in abstract, intro, AND conclusion, not just §6.1; (b) removed the bare "1.0000" boundary AUROC from the conclusion — now "1.0000 for the reported evaluation protocol" everywhere (Task O); (c) scoped "any trained world model" — routing payoff stated as 2/3 environments in abstract/intro/conclusion (Task Q); (d) consolidated reacher's three findings (seed-variable within-task confound, weakest C_t R², routing loss) into one coherent §6.1 limitation. **Citations RESOLVED (all verified via web search):** Berger et al. (2026, arXiv:2604.25416, preprint — no venue yet), Makelov et al. (2024, +arXiv:2311.17030), Nanda/Lee/Wattenberg (2023, BlackboxNLP, arXiv:2309.00941), Taufeeque et al. (2024, ICML MI workshop, arXiv:2407.15421), Sklar (2023, Confirm Labs), Wong (2026, Probabilistic Dreaming, arXiv:2603.04715) — each present, correctly formatted, and cited in-text; reference list completed (also added previously-unlisted Conneau/Tenney/Lütjens/Schmidhuber/Ha/Hafner2019/Depeweg). All 21 in-text citations resolve.
 
 Provenance key: P1 = Phase 1 (pilot), P1b = Phase 1b, P1c = Phase 1c. DEV_LOG section
 names in parentheses.
@@ -67,17 +73,22 @@ mean±std it is shown in the "seeds" column once available.
 
 ### 1.2b Three-environment generality (Task J resolves the n=2 ambiguity)
 
-| Metric | cartpole | reacher | pendulum | generalizes? |
+Reacher/pendulum now carry **4-seed** means (Task R, P1f); cartpole is single-seed here (5-seed
+in §1.1). "single→mean±std" shows the original Task D/J run and the 4-seed aggregate.
+
+| Metric | cartpole | reacher (single → 4-seed) | pendulum (single → 4-seed) | generalizes? |
 |---|---|---|---|---|
 | Probe A held-out AUROC | 0.902 | 0.764 | 0.974 | yes (strong ID everywhere) |
-| **Set C AUROC** | 0.723 | 0.619 | **0.322 (inverts!)** | **NO — environment-dependent** |
-| Within-task confound | 0.506 | 0.578 | 0.437 | ~chance, wanders both ways |
-| **C_t best R²** | 0.798 | 0.216 | 0.886 | signal present all 3; R² **env-dependent** |
-| **C_t best γ** | 0.95 | 0.70 | 0.90 | **env-dependent** (not a universal constant) |
-| Null-space angle (°) | 88.0 | 89.4 | 88.1 | **YES** (near-orthogonal all 3) |
-| Frac in top-10 PC | 0.090 | 0.002 | 0.015 | **YES** (near-null-space all 3) |
+| **Set C AUROC** | 0.723 | 0.619 → **0.667 ± 0.048** | **0.322 → 0.396 ± 0.063 (all 4 <0.5)** | **env-dependent; pendulum inversion STABLE** |
+| Within-task confound | 0.506 | 0.578 → **0.654 ± 0.084** (seed-variable, above chance) | 0.437 → 0.477 ± 0.044 | ~chance, wanders; **reacher noisy** |
+| **C_t best R²** | 0.798 | 0.216 → 0.261 ± 0.035 | 0.886 → **0.855 ± 0.038 (strongest, stable)** | signal present all 3; R² env-dependent |
+| **C_t best γ** | 0.95 | 0.70 → **0.70 (all seeds)** | 0.90 → **0.90 (all seeds)** | env-dependent but **seed-stable** |
+| Null-space angle (°) | 88.0 | 89.4 → 89.31 ± 0.09 | 88.1 → 88.46 ± 0.22 | **YES** (near-orthogonal, seed-stable) |
+| Frac in top-10 PC | 0.090 | 0.002 → 0.002 | 0.015 → 0.011 | **YES** (near-null-space all 3) |
 
-**Pattern:** the confusion **direction**, the **null-space geometry**, and the **linear encoding of C_t** generalize across all three; the **Set C AUROC** and the **closed-form γ/R²** are environment-dependent. Pendulum is the decisive case — it has the *strongest* C_t encoding (0.886) yet an *inverted* Set C (0.322), dissociating the two and proving Set C's inversion is a construction artefact (recon-based labelling anti-aligns with confusion in pendulum's dynamics), not an absence of signal. Neither reacher nor cartpole was the outlier.
+**Pattern:** the confusion **direction**, the **null-space geometry**, and the **linear encoding of C_t** generalize across all three; the **Set C AUROC** and the **closed-form γ/R²** are environment-dependent. Pendulum is the decisive case — it has the *strongest* C_t encoding (0.86, stable across 4 seeds) yet an *inverted* Set C (0.40, all 4 seeds <0.5), dissociating the two and proving Set C's inversion is a construction artefact (recon-based labelling anti-aligns with confusion in pendulum's dynamics), not an absence of signal. Neither reacher nor cartpole was the outlier.
+
+**Seed-replication (Task R, P1f):** (1) **pendulum's Set C inversion is STABLE** — all 4 seeds below 0.5 (0.322/0.395/0.496/0.371), so Task N's mechanism rests on replicated evidence. (2) **reacher's within-task confound is SEED-VARIABLE and above chance** (0.654 ± 0.084, range [0.565, 0.751]) — the single-seed 0.578 understated its variability; report reacher's confound-cleanliness as the least clean of the three, not near-chance. (3) **γ, null-space angle, and C_t R² are seed-stable** in both environments (best γ has zero cross-seed variance), so the generality backbone is firm.
 
 **Mechanism of the Set C inversion (Task N, P1e) — tested, ordered across the 3 envs.** The
 predictor is the **within-KL-bin correlation between per-step recon error and C_t**: Set C splits
@@ -294,4 +305,5 @@ paper connection) live in `outputs/deliverables/`:
 `task_G_null_distribution.md`, `task_H_attractor_recovery.md`, `task_I_multiseed_causal.md`,
 `task_J_third_environment.md`, `task_K_decoder_recon.md`, `task_L_swap_intervention.md`,
 `task_M_boundary_zgate_causal.md`, `task_N_setc_inversion_mechanism.md`,
-`task_O_boundary_discrepancy.md`, `task_P_stopping_rule.md`.
+`task_O_boundary_discrepancy.md`, `task_P_stopping_rule.md`, `task_Q_crossenv_routing.md`,
+`task_R_multiseed_envs.md`, `task_S_scale_check.md`.
