@@ -177,8 +177,8 @@ limitation is mechanistic: its recon oracle (0.587) is an unusually strong routi
 | Ablation Δ probe @ t (random dir) | −0.004 | 600 sites, CI[−0.008,+0.000] | P1b Task A |
 | Routing flip rate — confusion vs random | 0.805 vs 0.027 | CI[0.770,0.837] vs [0.015,0.040] | **P1b Task A** |
 | γ-decay: observed \|Δ_k\|/\|Δ_0\| vs γ^k | 1.00/0.81/0.60/0.50 vs 1.00/0.95/0.77/0.60 | k=0,1,5,10 | P1b Task A |
-| **Confusion dir percentile vs 50-dir null (probe-decay)** | **100th** (z=−22.9) | 50 random dirs, 600 sites | **P1c Task G** |
-| **Confusion dir percentile vs 50-dir null (routing)** | **100th** (z=+30.6) | 50 random dirs, 600 sites | **P1c Task G** |
+| **Confusion dir percentile vs 50-dir null (probe-decay)** | **100th** (−0.60 vs null 0.00±0.03; z≈−22) | 50 random dirs, 600 sites | **P1c Task G** |
+| **Confusion dir percentile vs 50-dir null (routing)** | **100th** (0.83 vs null 0.25±0.02; z≈+26) | 50 random dirs, 600 sites | **P1c Task G** |
 | Distinct measure (latent divergence) vs null | 32nd pct (z=−0.6) — **partial** | 25 random dirs | P1c Task G |
 | Distinct measure #2 (decoder recon on next REAL obs) vs null | 64th/56th pct (z=−0.7/−0.6) — **does not separate** | 600 sites, 50-dir null | **P1d Task K** |
 | Robustness: effect retained at 0.25 dir-rotation | 58% | mean of 5 rotations | P1c Task G |

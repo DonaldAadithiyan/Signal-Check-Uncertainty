@@ -252,6 +252,11 @@ def main():
                                             null_std=float(d.std()), z=float(z), pct_extreme=pct)
         print(f"  {key:<16}{c:>+12.4f}{d.mean():>+10.4f}±{d.std():<8.4f}{z:>10.1f}{pct:>11.0f}%")
 
+    # save the RAW null distribution + confusion value so figures use the exact numbers
+    np.savez(os.path.join(OUT_DIR, 'task_g_null_raw.npz'),
+             **{f'null_{k}': null[k] for k in null},
+             **{f'conf_{k}': np.array([conf[k]]) for k in null})
+
     # ── (2) distinct downstream measure: imagined-vs-real latent divergence ──
     print(f"\n[2] Distinct measure — imagined-vs-real latent divergence (horizon "
           f"{DIVERGENCE_H})...")

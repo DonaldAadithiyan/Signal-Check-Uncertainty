@@ -100,7 +100,7 @@ def main():
              ha='center', va='top', fontsize=6.6, wrap=True)
 
     plt.tight_layout(rect=[0, 0, 1, 1])
-    fig.savefig(OUT, dpi=150, bbox_inches='tight')
+    fig.savefig(OUT, dpi=300, bbox_inches='tight')
     print(f"Saved {OUT}")
     print("Per-env (middle bin / mean-over-bins):")
     for env in order:
