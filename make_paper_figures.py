@@ -107,6 +107,36 @@ def fig2_appendix_roc(cfg, clf, sc):
     print(f"[2] {pth}  AUROCs A/B/C = {aucs[0]:.3f}/{aucs[1]:.3f}/{aucs[2]:.3f} (expect 0.872/0.807/0.714)")
 
 
+def fig2_split_roc(cfg, clf, sc):
+    """Same three panels as fig2, but as THREE separate square images, each
+    filling its frame (minimal whitespace). Numbers identical to fig2."""
+    kl_median = float(np.median(dict(np.load(cfg['training_data_path']))['kl']))
+    set_a = dict(np.load('outputs/data/set_a_id.npz'))
+    set_b = dict(np.load('outputs/data/set_b_ood.npz'))
+    set_c = dict(np.load('outputs/data/set_c_contrastive.npz'))
+    panels = [
+        ('setA', 'Set A — held-out (ID)', set_a['h'], (set_a['kl'] > kl_median).astype(int)),
+        ('setB', 'Set B — near-OOD (noisy)', set_b['h'], (set_b['kl'] > kl_median).astype(int)),
+        ('setC', 'Set C — KL-matched contrastive', set_c['h'], set_c['labels']),
+    ]
+    for tag, title, X, y in panels:
+        p = clf.predict_proba(sc.transform(X))[:, 1]
+        fpr, tpr, _ = roc_curve(y, p); auc = roc_auc_score(y, p)
+        fig, ax = plt.subplots(figsize=(3.4, 3.1))
+        ax.plot(fpr, tpr, color=C_PROBE, lw=2.4, label=f'Probe A (AUROC {auc:.3f})')
+        ax.plot([0, 1], [0, 1], color=C_CHANCE, ls='--', lw=1, label='chance')
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.set_xlabel('false positive rate'); ax.set_ylabel('true positive rate')
+        ax.set_title(title, fontweight='bold', fontsize=9)
+        ax.legend(loc='lower right', framealpha=0.92)
+        ax.grid(True, alpha=0.25)
+        ax.margins(0)
+        fig.tight_layout(pad=0.3)
+        pth = os.path.join(FIGDIR, f'roc_appendix_{tag}.png')
+        fig.savefig(pth, dpi=300, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
+        print(f"[2-split] {pth}  AUROC {auc:.3f}")
+
+
 # ─── Figure 3: empirical null distribution ──────────────────────────────────
 
 def fig3_null_distribution():
@@ -147,6 +177,35 @@ def fig3_null_distribution():
     print(f"[3] {pth}  z (k=0,1,5,10) = {'/'.join(f'{z:.1f}' for z in zs)} (read from saved JSON — unchanged)")
 
 
+def fig3_split_null():
+    """Same panels as fig3, but each look-ahead k as a SEPARATE full-frame image
+    (roc-split style). Numbers read from the saved JSON/npz — unchanged."""
+    raw_p = 'outputs/causal/task_g_null_raw.npz'
+    if not os.path.exists(raw_p):
+        print("[3-split] SKIP — task_g_null_raw.npz not present"); return
+    d = dict(np.load(raw_p))
+    g = json.load(open('outputs/causal/task_g_results.json'))
+    for k in [0, 1, 5, 10]:
+        null = d[f'null_dprobe_{k}']; conf = float(d[f'conf_dprobe_{k}'][0])
+        z = g['null_summary'][f'dprobe_{k}']['z']
+        fig, ax = plt.subplots(figsize=(3.4, 3.1))
+        ax.hist(null, bins=18, color=C_NULL, edgecolor='#999', lw=0.4)
+        ax.axvline(conf, color=C_MARK, lw=2.4)                      # matched line width
+        lo = min(conf, null.min()); hi = max(null.max(), conf)
+        pad = 0.10 * (hi - lo + 1e-6)
+        ax.set_xlim(lo - pad, hi + pad); ax.margins(y=0)
+        ax.annotate(f'confusion dir.\nz ≈ {z:.0f}', xy=(conf, 0),
+                    xytext=(conf + pad, ax.get_ylim()[1] * 0.92),
+                    color=C_MARK, fontsize=8, ha='left', va='top', fontweight='bold')
+        ax.set_title(f'Look-ahead k = {k}', fontweight='bold', fontsize=9)
+        ax.set_xlabel('Δ probe score (ablation)'); ax.set_ylabel('# random directions')
+        ax.grid(True, alpha=0.2)
+        fig.tight_layout(pad=0.3)
+        pth = os.path.join(FIGDIR, f'null_k{k}.png')
+        fig.savefig(pth, dpi=300, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
+        print(f"[3-split] {pth}  conf={conf:+.3f} z≈{z:.1f} (100th pct)")
+
+
 # ─── Figure 4: cross-seed / cross-task Set C AUROC dot-and-whisker ───────────
 
 def fig4_cross_seed():
@@ -158,24 +217,27 @@ def fig4_cross_seed():
         for s in (1, 2, 3):
             envs[env].append(json.load(open(f'outputs/multiseed_env/{env}_seed{s}/metrics.json'))['auroc_c'])
     names = ['cartpole', 'reacher', 'pendulum']
-    fig, ax = plt.subplots(figsize=(3.6, 3.0))
+    fig, ax = plt.subplots(figsize=(3.4, 3.1))
     rng = np.random.default_rng(0)
     for i, env in enumerate(names):
         vals = np.array(envs[env]); m = vals.mean()
         jit = rng.uniform(-0.06, 0.06, len(vals))
-        ax.scatter(np.full(len(vals), i) + jit, vals, s=22, color=C_PROBE, alpha=0.7, zorder=3,
+        # whisker (range) then mean bar on top — line widths matched to the ROC figures
+        # (chance/reference lw 1.0; primary data mark lw 2.4)
+        ax.plot([i, i], [vals.min(), vals.max()], color='#555', lw=1.0, zorder=2)
+        ax.scatter(np.full(len(vals), i) + jit, vals, s=22, color=C_PROBE, alpha=0.75, zorder=3,
                    edgecolors='white', lw=0.5)
-        ax.plot([i - 0.18, i + 0.18], [m, m], color='black', lw=2, zorder=4)
-        ax.plot([i, i], [vals.min(), vals.max()], color='#555', lw=1, zorder=2)
-        ax.annotate(f'{m:.2f}\n±{vals.std():.2f}', xy=(i + 0.22, m), fontsize=6.8, va='center')
-    ax.axhline(0.5, color=C_CHANCE, ls='--', lw=1)
-    ax.text(2.35, 0.5, 'chance', color=C_CHANCE, fontsize=6.5, va='bottom', ha='right')
+        ax.plot([i - 0.18, i + 0.18], [m, m], color='black', lw=2.4, zorder=4)
+        ax.annotate(f'{m:.2f}\n±{vals.std():.2f}', xy=(i + 0.24, m), fontsize=6.8, va='center')
+    ax.axhline(0.5, color=C_CHANCE, ls='--', lw=1.0)
+    ax.text(2.62, 0.505, 'chance', color=C_CHANCE, fontsize=6.5, va='bottom', ha='right')
     ax.set_xticks(range(3)); ax.set_xticklabels([f'{n}\n(n={len(envs[n])})' for n in names])
-    ax.set_ylabel('Set C AUROC'); ax.set_ylim(0.25, 0.85)
+    ax.set_ylabel('Set C AUROC'); ax.set_ylim(0.25, 0.85); ax.set_xlim(-0.35, 2.62)
+    ax.margins(x=0)
     ax.set_title('Set C AUROC across seeds (mean ± std; points = seeds)', fontweight='bold', fontsize=8)
     ax.grid(True, axis='y', alpha=0.25)
-    fig.tight_layout()
-    pth = os.path.join(FIGDIR, 'cross_seed_stability.png'); fig.savefig(pth, dpi=300, bbox_inches='tight'); plt.close(fig)
+    fig.tight_layout(pad=0.3)
+    pth = os.path.join(FIGDIR, 'cross_seed_stability.png'); fig.savefig(pth, dpi=300, bbox_inches='tight', pad_inches=0.02); plt.close(fig)
     print(f"[4] {pth}  cartpole {np.mean(cart):.3f} | reacher {np.mean(envs['reacher']):.3f} | pendulum {np.mean(envs['pendulum']):.3f}")
 
 

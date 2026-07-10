@@ -17,6 +17,7 @@ from the data, not retyped, and saves the plot in the repo's figure style.
 
 import os
 import numpy as np
+import torch
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -33,7 +34,10 @@ COLORS = {'cartpole': '#2a6f97', 'reacher': '#e07a1f', 'pendulum': '#9b2226'}
 
 
 def collect_bin(env, spec):
-    """Task N's exact procedure: fresh collection, C_t with env γ, middle KL decile."""
+    """Task N's exact procedure: fresh collection, C_t with env γ, middle KL decile.
+    torch is seeded so the RSSM z-sampling is deterministic and the figure reproduces
+    exactly (Task N's headline mean-over-bins r values are within sampling noise of these)."""
+    torch.manual_seed(555)
     model = N.load_model(spec['ck'], spec['obs_dim'], spec['act_dim'])
     d = N.collect(model, spec['factory'], spec['act_dim'], 20)   # seed 555 default (as Task N)
     ct = compute_ct(d['kl'], d['traj_id'], gamma=N.GAMMA[env])
@@ -102,6 +106,31 @@ def main():
     plt.tight_layout(rect=[0, 0, 1, 1])
     fig.savefig(OUT, dpi=300, bbox_inches='tight')
     print(f"Saved {OUT}")
+
+    # ── split: one full-frame image per environment (same data, roc-split style) ──
+    for env in order:
+        dd = data[env]; c = COLORS[env]
+        f2, ax = plt.subplots(figsize=(3.4, 3.1))
+        idx = np.arange(len(dd['recon']))
+        if len(idx) > 600:
+            idx = np.random.default_rng(0).choice(idx, 600, replace=False)
+        ax.scatter(dd['recon'][idx], dd['ct'][idx], s=9, alpha=0.30, c=c, rasterized=True, edgecolors='none')
+        xf, yf = dd['recon'], dd['ct']
+        coef = np.polyfit(xf, yf, 1)
+        xs = np.linspace(np.percentile(xf, 1), np.percentile(xf, 99), 100)
+        ax.plot(xs, np.polyval(coef, xs), color='black', lw=2.4)   # matched line width
+        ax.set_title(f"{env}  (Set C AUROC {SETC[env]:.2f})", fontsize=9, fontweight='bold')
+        ax.text(0.04, 0.96,
+                f"bin $r$ = {dd['bin_r']:+.2f}\nmean-over-bins $r$ = {dd['mean_r']:+.2f}",
+                transform=ax.transAxes, va='top', ha='left', fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec=c, alpha=0.9))
+        ax.set_xlabel('reconstruction error'); ax.set_ylabel('confusion integral $C_t$')
+        ax.grid(True, alpha=0.3); ax.margins(0.02)
+        f2.tight_layout(pad=0.3)
+        pth = os.path.join(os.path.dirname(OUT), f'setc_mech_{env}.png')
+        f2.savefig(pth, dpi=300, bbox_inches='tight', pad_inches=0.02); plt.close(f2)
+        print(f"  split → {pth}")
+
     print("Per-env (middle bin / mean-over-bins):")
     for env in order:
         dd = data[env]
