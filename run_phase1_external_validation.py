@@ -161,22 +161,19 @@ def reward_from_decoded_obs(domain, decoded_obs):
 # ─── trajectory collection (real env, real reward, full obs/act/h/z/kl/recon) ─
 
 def collect_trajectories(model, spec, n_traj, cfg, seed=SEED):
-    """Task 1 (gap-closing spec) fix: the RSSM's stochastic-latent sampling
+    """NOTE (Task 1, gap-closing spec): the RSSM's stochastic-latent sampling
     (rssm._straight_through_sample -> torch.distributions.Categorical.sample())
-    draws from PyTorch's GLOBAL, unseeded RNG at every timestep. Prior to this
-    fix, nothing in this file ever called torch.manual_seed(), so two runs with
-    identical env seeds and identical model weights produced BYTE-DIFFERENT h_t
-    trajectories (verified: same obs/actions, h_t diverges by up to ~0.87 in
-    absolute value after 500 steps -- small per-step sampling differences compound
-    through the recurrent rollout). This was the actual root cause of pendulum's
-    incremental-R^2 point estimate differing across "identical" reruns (+0.0006 /
-    +0.0017 / +0.0020 / +0.0021 variously reported) -- not a downstream reporting
-    error, a genuine unseeded-RNG bug in trajectory collection itself. Seeding
-    torch here (once per call, not per-episode, so the whole n_traj batch is one
-    reproducible draw) makes collect_trajectories -- and everything derived from
-    it, including the addendum's rebuild_site_dataset -- byte-for-byte
-    reproducible across reruns, verified via torch.manual_seed(999) A/B test."""
-    torch.manual_seed(seed)
+    draws from PyTorch's GLOBAL, unseeded RNG at every timestep. Seeding torch
+    only inside this function is NOT sufficient on its own -- imagined_vs_real_obs
+    (called once per evaluation site, AFTER this function returns) also calls
+    RSSM sampling via imagine_step, consuming more of the same global RNG stream.
+    The actual fix is applied once, at the top of run_task(), covering this
+    function and every downstream RSSM sampling call in one deterministic
+    sequence -- see run_task's docstring note for the full root-cause writeup
+    and verification. This function no longer seeds on its own so that calling
+    it standalone (e.g. from the addendum script) does not create a false
+    impression of local reproducibility that the full pipeline doesn't actually
+    have; callers that need reproducibility must seed torch themselves first."""
     device = next(model.parameters()).device
     trajs = []
     for ep in range(n_traj):
@@ -334,6 +331,30 @@ def ensemble_disagreement_series(models, obs_arr, cfg):
 # ─── main per-task pipeline ───────────────────────────────────────────────────
 
 def run_task(task, spec, cfg):
+    """Task 1 (gap-closing spec) root-cause fix and its verification:
+
+    The RSSM's stochastic-latent sampling (_straight_through_sample ->
+    torch.distributions.Categorical.sample()) draws from PyTorch's GLOBAL,
+    unseeded RNG at every timestep, in BOTH collect_trajectories (real-env
+    rollout) and imagined_vs_real_obs (per-site imagination rollout, called
+    ~6000 times below). Prior to this fix, torch.manual_seed() was never
+    called anywhere in this file, so two "identical" reruns (same env seed,
+    same model weights, same site-selection RNG) produced different h_t/z_t
+    sample paths, and therefore different E^state values and different
+    incremental-R^2 point estimates -- verified directly: two reruns of this
+    exact function differed in pendulum's h_t by up to 0.87 absolute after a
+    500-step rollout, and the resulting incremental R^2 varied across runs
+    (+0.0006 / +0.0017 / +0.0020 / +0.0021 were all genuine outputs of this
+    same nominally-deterministic pipeline, not reporting/transcription errors).
+    A first fix attempt that seeded only inside collect_trajectories() was
+    insufficient -- it made trajectory collection itself reproducible but left
+    the per-site imagination rollout below unseeded, so the residual drift
+    (e.g. pendulum 0.001958 vs 0.001924 across two "fixed" reruns) persisted
+    at a smaller scale. Seeding once here, at the top of the whole per-task
+    pipeline, covers every RSSM sampling call in one fixed sequential order
+    and has been verified to produce byte-identical incremental-R^2 values
+    (cartpole, reacher, and pendulum, to full float precision) across reruns."""
+    torch.manual_seed(SEED)
     print(f"\n{'='*78}\n{task.upper()}\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
 
