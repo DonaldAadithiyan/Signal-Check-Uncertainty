@@ -57,6 +57,12 @@ def load_condition(condition):
 
 
 def collect_trajectories(model, condition, n_traj, cfg, seed=SEED + 1):
+    """Task 1 fix (gap-closing spec, propagated here): RSSM stochastic-latent
+    sampling draws from PyTorch's global unseeded RNG unless torch.manual_seed
+    is set before this call -- see the identical fix and its verification in
+    run_phase1_external_validation.collect_trajectories. Seeded here for the
+    same reason: reproducible analysis output across seed-sweep reruns."""
+    torch.manual_seed(seed)
     device = next(model.parameters()).device
     trajs = []
     for ep in range(n_traj):

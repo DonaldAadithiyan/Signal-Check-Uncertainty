@@ -161,6 +161,22 @@ def reward_from_decoded_obs(domain, decoded_obs):
 # ─── trajectory collection (real env, real reward, full obs/act/h/z/kl/recon) ─
 
 def collect_trajectories(model, spec, n_traj, cfg, seed=SEED):
+    """Task 1 (gap-closing spec) fix: the RSSM's stochastic-latent sampling
+    (rssm._straight_through_sample -> torch.distributions.Categorical.sample())
+    draws from PyTorch's GLOBAL, unseeded RNG at every timestep. Prior to this
+    fix, nothing in this file ever called torch.manual_seed(), so two runs with
+    identical env seeds and identical model weights produced BYTE-DIFFERENT h_t
+    trajectories (verified: same obs/actions, h_t diverges by up to ~0.87 in
+    absolute value after 500 steps -- small per-step sampling differences compound
+    through the recurrent rollout). This was the actual root cause of pendulum's
+    incremental-R^2 point estimate differing across "identical" reruns (+0.0006 /
+    +0.0017 / +0.0020 / +0.0021 variously reported) -- not a downstream reporting
+    error, a genuine unseeded-RNG bug in trajectory collection itself. Seeding
+    torch here (once per call, not per-episode, so the whole n_traj batch is one
+    reproducible draw) makes collect_trajectories -- and everything derived from
+    it, including the addendum's rebuild_site_dataset -- byte-for-byte
+    reproducible across reruns, verified via torch.manual_seed(999) A/B test."""
+    torch.manual_seed(seed)
     device = next(model.parameters()).device
     trajs = []
     for ep in range(n_traj):

@@ -118,11 +118,37 @@ def incremental_r2(rows, target, baseline_cols, have_ensemble):
     return r2_full - r2_ctrl
 
 
+DEGENERATE_VAR_EPS = 1e-10
+
+
+def _is_degenerate_resample(rows_b, target_b, baseline_cols):
+    """§7.4 requirement: a resample whose target or any regressor column is
+    (near-)constant must be treated as undefined, not silently coerced to a
+    valid statistic. StandardScaler on a constant column produces an all-zero
+    column and LinearRegression().score() on that returns a finite (biased)
+    R^2 without raising or producing NaN -- so a plain try/except + isfinite
+    check does NOT catch this case. We therefore check variance explicitly."""
+    cols_to_check = ['ct'] + baseline_cols
+    if np.var(target_b) < DEGENERATE_VAR_EPS:
+        return True
+    for c in cols_to_check:
+        if np.var(rows_b[c]) < DEGENERATE_VAR_EPS:
+            return True
+    return False
+
+
 def trajectory_stratified_bootstrap_incremental_r2(rows, target, baseline_cols,
                                                     have_ensemble, n_boot=N_BOOT, seed=0):
     """Resample WHOLE TRAJECTORIES with replacement (not individual sites), then
     pool all sites from the resampled trajectories -- respects the non-i.i.d.
-    structure within a trajectory (Rigor Addendum §1.1's explicit requirement)."""
+    structure within a trajectory (Rigor Addendum §1.1's explicit requirement).
+
+    §7.4 requirement: constant/near-constant resamples (of the target or any
+    regressor, e.g. C_t) must be excluded as undefined rather than silently
+    coerced to a valid replicate (e.g. via StandardScaler's zero-variance
+    fallback letting a degenerate column score a finite-but-meaningless R^2).
+    We check variance explicitly before computing the statistic and track how
+    many of the n_boot draws were excluded as degenerate."""
     rng = np.random.default_rng(seed)
     traj_ids = np.unique(rows['traj_id'])
     n_traj = len(traj_ids)
@@ -130,20 +156,28 @@ def trajectory_stratified_bootstrap_incremental_r2(rows, target, baseline_cols,
     point = incremental_r2(rows, target, baseline_cols, have_ensemble)
 
     boots = []
+    n_degenerate = 0
     for _ in range(n_boot):
         resampled_traj = rng.choice(traj_ids, size=n_traj, replace=True)
         idx = np.concatenate([np.where(rows['traj_id'] == tid)[0] for tid in resampled_traj])
         rows_b = {k: rows[k][idx] for k in rows if k != 'traj_id'}
         target_b = target[idx]
+
+        if _is_degenerate_resample(rows_b, target_b, baseline_cols):
+            n_degenerate += 1
+            continue
         try:
             b = incremental_r2(rows_b, target_b, baseline_cols, have_ensemble)
             if np.isfinite(b):
                 boots.append(b)
+            else:
+                n_degenerate += 1
         except Exception:
+            n_degenerate += 1
             continue
     boots = np.array(boots)
     lo, hi = np.percentile(boots, [2.5, 97.5])
-    return float(point), float(lo), float(hi), boots
+    return float(point), float(lo), float(hi), boots, n_degenerate, n_boot
 
 
 def compute_vif(rows, cols):
@@ -186,11 +220,14 @@ def main():
         print(f"  reconstructed incremental R^2 (sanity check) = {point_check:+.4f}")
 
         # §1.1: trajectory-stratified bootstrap CI
-        point, lo, hi, boots = trajectory_stratified_bootstrap_incremental_r2(
+        point, lo, hi, boots, n_degenerate, n_boot_total = trajectory_stratified_bootstrap_incremental_r2(
             rows, target, baseline_cols, have_ensemble)
         ci_includes_zero = lo <= 0 <= hi
         print(f"  §1.1 trajectory-stratified bootstrap incremental R^2: "
               f"{point:+.4f} [{lo:+.4f}, {hi:+.4f}]  CI includes zero: {ci_includes_zero}")
+        print(f"  §7.4 degenerate-resample audit: {n_degenerate}/{n_boot_total} bootstrap "
+              f"replicates excluded as degenerate (near-constant target/regressor); "
+              f"{len(boots)} valid replicates used for the CI")
 
         # §1.2: VIF / partial correlation for C_t
         all_cols = ['ct'] + baseline_cols
@@ -205,6 +242,9 @@ def main():
             baseline_cols=baseline_cols,
             incremental_r2_point=point, incremental_r2_ci_lo=lo, incremental_r2_ci_hi=hi,
             ci_includes_zero=bool(ci_includes_zero),
+            n_bootstrap_replicates=n_boot_total,
+            n_degenerate_resamples_excluded=n_degenerate,
+            n_valid_bootstrap_replicates=len(boots),
             vif_ct=vif_ct, r2_ct_on_others=r2_ct_on_others,
             partial_r_ct_e_state=partial_r, partial_p_ct_e_state=partial_p,
         )
