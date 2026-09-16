@@ -22,6 +22,7 @@ bootstrap requires.
 import os
 import json
 import numpy as np
+import torch
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import pearsonr
@@ -44,7 +45,17 @@ N_BOOT = 1000
 def rebuild_site_dataset(task, spec, cfg):
     """Reproduces run_phase1_external_validation.run_task's exact per-site
     dataset construction, retaining trajectory ID (ti) per site for stratified
-    bootstrap. Deterministic given the same seed/protocol as the original."""
+    bootstrap. Deterministic given the same seed/protocol as the original.
+
+    Task 1 (gap-closing spec) fix, mirrored from run_task's identical fix: RSSM
+    stochastic-latent sampling draws from PyTorch's global unseeded RNG in BOTH
+    collect_trajectories (below) and imagined_vs_real_obs (also below, per site)
+    -- torch.manual_seed must be set once, here, before either is called, or this
+    function's "sanity check" point estimate will not actually match run_task's
+    (verified: prior to this fix, this function reconstructed pendulum's
+    incremental R^2 as +0.0009 against run_task's independently-verified,
+    reproducible +0.0019 -- a real mismatch, not rounding)."""
+    torch.manual_seed(SEED)
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))
     kl_median = float(np.median(tr['kl']))
