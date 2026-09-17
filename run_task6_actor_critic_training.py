@@ -178,13 +178,14 @@ def finetune_world_model(model, optim, buffer, n_steps, cfg, device='cpu'):
 
 
 def train_actor_critic_steps(model, actor, critic, actor_opt, critic_opt, domain,
-                              h_pool, z_pool, n_steps):
+                              h_pool, z_pool, n_steps, shaped_reward=False):
     rewards_log = []
     for step in range(n_steps):
         idx = np.random.choice(len(h_pool), min(BATCH_SIZE, len(h_pool)), replace=len(h_pool) < BATCH_SIZE)
         h0 = h_pool[idx]; z0 = z_pool[idx]
 
-        rollout = imagine_rollout(model.rssm, model.decoder, actor, domain, h0, z0, IMAGINE_HORIZON)
+        rollout = imagine_rollout(model.rssm, model.decoder, actor, domain, h0, z0, IMAGINE_HORIZON,
+                                   shaped_reward=shaped_reward)
         states = state_repr(rollout['h'], rollout['z'])
         rewards = rollout['reward']
 
@@ -251,14 +252,28 @@ def train_task6(task, seed_idx, ckpt_path, cfg, seed):
             buffer.add_episode(obs_l, act_l)
 
         wm_loss = finetune_world_model(model, wm_opt, buffer, WM_FINETUNE_STEPS_PER_LOOP, model_cfg, device)
+        # pendulum trains on the dense shaped proxy (see reward_from_decoded_obs_torch's
+        # docstring for why the exact reward gives no usable gradient here); cartpole/
+        # reacher are unaffected (no shaped variant exists for them).
+        use_shaped = (domain == 'pendulum')
         mean_reward = train_actor_critic_steps(model, actor, critic, actor_opt, critic_opt,
-                                                domain, h_pool, z_pool, AC_TRAIN_STEPS_PER_LOOP)
+                                                domain, h_pool, z_pool, AC_TRAIN_STEPS_PER_LOOP,
+                                                shaped_reward=use_shaped)
+        # also report the REAL (unshaped) reward on the same imagined states, so
+        # pendulum's log is comparable to cartpole/reacher and to real-env eval
+        with torch.no_grad():
+            idx = np.random.choice(len(h_pool), min(BATCH_SIZE, len(h_pool)), replace=len(h_pool) < BATCH_SIZE)
+            eval_rollout = imagine_rollout(model.rssm, model.decoder, actor, domain,
+                                            h_pool[idx], z_pool[idx], IMAGINE_HORIZON, shaped_reward=False)
+            mean_reward_true = eval_rollout['reward'].mean().item()
 
         elapsed = time.time() - t0
-        loop_log.append(dict(loop=loop, wm_loss=wm_loss, mean_imag_reward=mean_reward,
+        loop_log.append(dict(loop=loop, wm_loss=wm_loss, mean_imag_reward_train=mean_reward,
+                              mean_imag_reward_true=mean_reward_true,
                               buffer_steps=len(buffer), explore_std=explore_std))
         print(f"  [{task}/seed{seed_idx}] loop {loop+1}/{N_OUTER_LOOPS} "
-              f"wm_loss={wm_loss:.4f} mean_imag_reward={mean_reward:.4f} "
+              f"wm_loss={wm_loss:.4f} mean_imag_reward(train)={mean_reward:.4f} "
+              f"mean_imag_reward(true)={mean_reward_true:.4f} "
               f"buffer_steps={len(buffer)} explore_std={explore_std:.2f} "
               f"elapsed={elapsed/60:.1f}m", flush=True)
 

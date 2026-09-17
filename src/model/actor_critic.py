@@ -53,10 +53,26 @@ def _tolerance_torch(x, lo, hi, margin=0.0):
     raise NotImplementedError("margin != 0 not needed by this project's reward reconstructions")
 
 
-def reward_from_decoded_obs_torch(domain, decoded_obs):
+def reward_from_decoded_obs_torch(domain, decoded_obs, shaped=False):
     """Differentiable torch equivalent of run_phase1_external_validation.
     reward_from_decoded_obs. decoded_obs: (..., obs_dim) tensor.
-    Returns reward tensor, same leading shape, WITH gradient."""
+    Returns reward tensor, same leading shape, WITH gradient.
+
+    `shaped=True` (Task 6 training-only reward-shaping, pendulum only): the
+    real pendulum swingup reward requires orientation_zz > 0.9903 (within
+    ~8 degrees of perfectly vertical) -- confirmed empirically to occur in
+    0/500 real random-action steps (max observed orientation_zz ~0.18 over
+    500 steps, ~0.98th percentile ~-0.17 over 2000 steps). The exact
+    tolerance-based reward therefore gives the actor essentially zero
+    gradient signal anywhere reachable by exploration, and pure-imagination
+    training showed zero reward improvement across a full 12-loop, 125-minute
+    run under it. This dense linear proxy, (orientation_zz + 1) / 2 -- the
+    same rescaling style already used for cartpole's proxy reward -- gives
+    informative gradient across the whole observed range instead of only at
+    the exact narrow threshold. This shaped reward is used ONLY as the
+    actor-critic TRAINING signal for pendulum; final evaluation still uses
+    the real exact reward (shaped=False, the default) for consistency with
+    the rest of the project and with cartpole/reacher's unshaped rewards."""
     if domain == 'cartpole':
         cos_pole = decoded_obs[..., 1]
         return (cos_pole + 1.0) / 2.0
@@ -66,6 +82,8 @@ def reward_from_decoded_obs_torch(domain, decoded_obs):
         return _tolerance_torch(dist, 0.0, _REACHER_RADII)
     elif domain == 'pendulum':
         orientation_zz = decoded_obs[..., 0]
+        if shaped:
+            return (orientation_zz + 1.0) / 2.0
         return _tolerance_torch(orientation_zz, _PENDULUM_COS_BOUND, 1.0)
     else:
         raise ValueError(domain)
@@ -142,7 +160,7 @@ def lambda_return(rewards, values, gamma=0.99, lam=0.95):
     return torch.stack(returns, dim=0)
 
 
-def imagine_rollout(rssm, decoder, actor, domain, h0, z0, horizon):
+def imagine_rollout(rssm, decoder, actor, domain, h0, z0, horizon, shaped_reward=False):
     """Rolls the actor forward through the FROZEN rssm/decoder for `horizon`
     imagined steps starting from (h0, z0). Returns per-step h, z, action,
     log_prob, decoded_obs, reward (all differentiable w.r.t. actor params;
@@ -150,7 +168,11 @@ def imagine_rollout(rssm, decoder, actor, domain, h0, z0, horizon):
     actor's gradient must flow back through the imagined trajectory, matching
     DreamerV3's dynamics-backprop actor training; only the actor's own
     optimizer step updates parameters, so the world model stays frozen despite
-    gradients passing through it during this forward pass)."""
+    gradients passing through it during this forward pass).
+
+    `shaped_reward=True` uses the dense training-only proxy for pendulum (see
+    reward_from_decoded_obs_torch) -- no effect on cartpole/reacher, which
+    have no shaped variant."""
     h, z = h0, z0
     hs, zs, actions, log_probs, decodeds, rewards = [], [], [], [], [], []
     for _ in range(horizon):
@@ -158,7 +180,7 @@ def imagine_rollout(rssm, decoder, actor, domain, h0, z0, horizon):
         action, log_prob = actor.sample(state)
         h, z, _ = rssm.imagine_step(h, z, action)
         decoded = decoder(state_repr(h, z))
-        reward = reward_from_decoded_obs_torch(domain, decoded)
+        reward = reward_from_decoded_obs_torch(domain, decoded, shaped=shaped_reward)
         hs.append(h); zs.append(z); actions.append(action)
         log_probs.append(log_prob); decodeds.append(decoded); rewards.append(reward)
     return dict(
