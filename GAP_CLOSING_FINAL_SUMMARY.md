@@ -30,7 +30,8 @@ and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
 | RNG-bug scope audit | ✅ Done | Bug confirmed in Phases 2/3/6 + addenda, fixed, re-verified. No verdict changes except cartpole's atom re-run. |
 | — Cartpole atom re-run (#156) | ✅ Done | **Strongest causal result in the project** — z=+10.3 (E^state) and z=−5.0 (probe), only atom meeting the simultaneous-effect bar. |
 | — Difficulty-matched FULL-vs-PARTIAL | ✅ Done | KL-dependent, non-monotonic: PARTIAL stronger at KL extremes, FULL stronger mid-range. Does not overturn MIXED verdict. |
-| 6 — Path B (real actor-critic) | ⏸ Not started | Blocker resolved (RNG audit done); still gated on venue/timeline decision (§5, flagged for user). |
+| 6 — Path B (real actor-critic) | ⏸ Paused | 13 policies trained; 10/13 show near-constant actor collapse (may be near-optimal bang-bang, not confirmed pathology). Diagnostic proposed, not yet run. |
+| 8 — Error-reduction adaptive reliance | ✅ Done | `C_t` never beats KL/Recon/EMARecon at reducing real imagination error, on any task, at any (non-plateau-distorted) budget. |
 | 7 — Learned correction mechanism (revised) | ⏸ Not started | Correctly gated on Task 6. |
 
 ---
@@ -198,26 +199,30 @@ additive upside, not something this write-up depends on.
 ## 5. Causal mechanism synthesis
 
 Consolidated Phase 3 and Phase 6's separately-reported causal findings into
-one account: **the representation's causal role bifurcates.**
+one account: **the representation's causal role bifurcates — with two legs
+at different confidence levels, not one uniform verdict.**
 
-1. **Dense direction `v`**: decisively causal for the model's own confusion
-   readout (z=+7 to +16 vs. null, all 3 tasks) — but **no detectable causal
-   effect on genuine external imagination quality** on any task. Now
-   independently replicated a second time by Task 3's seed sweep (same
-   pattern, different phase, different correction method).
-2. **Sparse SAE atom #612 (reacher)**: causally moves genuine `E^state`
-   (z=+2.7, 98th pct) while leaving the probe readout untouched, and removes
-   its own incremental-R² advantage on ablation. Confirmed (Task 2) to be the
-   same atom across correlational and causal testing. KL-non-redundant
-   (r(KL)≤0.055, held-out).
-3. **Update (RNG-bug audit follow-on) — sparse atom #156 (cartpole)**:
+1. **Leg A — dense direction `v` (fully confirmed, no hedge needed)**:
+   decisively causal for the model's own confusion readout (z=+7 to +16 vs.
+   null, all 3 tasks) — but **no detectable causal effect on genuine external
+   imagination quality** on any task. Independently replicated a second time
+   by Task 3's seed sweep (same pattern, different phase, different
+   correction method). Neither confirmation depends on the SAE pipeline.
+2. **Leg B, reacher-confirmed — sparse SAE atom #612**: causally moves
+   genuine `E^state` (z=+2.7, 98th pct) while leaving the probe readout
+   untouched, and removes its own incremental-R² advantage on ablation.
+   Confirmed (Task 2) to be the same atom across correlational and causal
+   testing. KL-non-redundant (r(KL)≤0.055, held-out). Fully verified.
+3. **Leg B, cartpole — sparse atom #156 (PROVISIONAL, not yet confirmed)**:
    originally causally tested on a since-retracted atom (#139, weak result);
-   re-run on the split-sample-confirmed replacement (#156) produces the
-   **strongest causal result in the entire project** — z=+10.3 on `E^state`
-   **and** z=−5.0 on the probe readout, the only atom to meet the "both
-   readouts move" bar. Unlike #612, #156 is **not** KL-non-redundant
-   (r(KL)=+0.499) — it is causally decisive but correlationally KL-redundant,
-   the mirror-image scoping to reacher's atom.
+   re-run on the split-sample-confirmed replacement (#156) *currently
+   appears to produce* the strongest causal result in the entire project —
+   z=+10.3 on `E^state` **and** z=−5.0 on the probe readout, the only atom to
+   meet the "both readouts move" bar. Unlike #612, #156 is **not**
+   KL-non-redundant (r(KL)=+0.499). **This result is provisional pending
+   independent verification of its incremental-R² figure (suspected
+   copy/reuse issue) and the SAE pipeline's own reproducibility** — do not
+   cite at the same confidence as #612 until both close.
 
 These are causally-independent objects (each atom carries negligible weight
 in `v`'s own reconstruction) — not conflicting halves of one finding. Claim 2
@@ -279,22 +284,54 @@ corrections pending").
 
 ---
 
-## 6 & 7 — Gated, not started
+## 6 — Path B (real actor-critic), paused · 7 — not started
 
-**Task 6 (Path B — real actor-critic gated perception):** the RNG-bug-audit
-blocker is now resolved. The remaining go/no-go criterion — **the
-venue/timeline question (AAMAS 2027's Oct 1/8 deadlines vs. this task's
-engineering scope)** — is explicitly flagged as a decision for the user, not
-something to investigate or resolve unilaterally (see the task spec's
-§5). No design or implementation work has begun, and none should until that
-decision is made.
+**Task 6:** the venue/timeline question was resolved ("build it properly,"
+no compressed scope) and full-rigor training was started: 13 actor-critic
+policies trained (cartpole ×5, reacher ×4, pendulum ×4) via a DreamerV3-style
+alternating loop (collect real episodes → fine-tune the world model → train
+actor/critic in imagination), a real scope expansion from "reuse the frozen
+model" made necessary when pure-imagination training against the truly-frozen
+model showed zero learning (the frozen model's random-action training data
+never reaches near the goal region). Pendulum needed a dense training-only
+shaped reward (its exact reward is essentially never reached under random
+exploration); real reward stayed unshaped for all evaluation.
 
-**Task 7 (confusion-gated residual correction, revised design):** gated on
-Task 6. Current spec (superseding an earlier draft) corrects the transition
-function's *output* `h_{t+1}` under an explicit relative-norm magnitude
-budget, compared against a magnitude-matched mean-regression baseline — a
-methodological improvement over the first draft that closes the
-mean-regression-sandbagging loophole. Not started.
+**Paused on a real finding:** building the gated-perception evaluation
+harness surfaced that **10 of 13 policies (all cartpole, all pendulum, 1/4
+reacher) collapsed to a near-constant, saturated action.** This may not be a
+pathology — cartpole/pendulum swingup are exactly the class of underactuated
+problem where near-bang-bang control is close to the true optimum (per
+time-optimal control theory), and reward did improve substantially during
+training. Reacher's 3/4 non-collapsed seeds retain genuine closed-loop
+diversity. A cheap diagnostic (compare achieved reward against known
+benchmark performance for these tasks, no new training) was proposed to
+distinguish genuine collapse from near-optimal bang-bang, but **has not yet
+been run** — the retrain-or-not decision is explicitly deferred until it is,
+per instruction. All 13 trained policies are retained, nothing discarded.
+
+**Task 7:** unchanged, correctly gated on Task 6, not started.
+
+---
+
+## 8 — Error-reduction adaptive reliance (new, distinct from Task 6)
+
+A cheaper, parallel test added alongside Task 6's pause: at a fixed
+real-observation query budget, does selecting states by `C_t` reduce actual
+accumulated imagination error (`E^state`) more than KL/Recon/EMARecon/
+ensemble disagreement? No new training — reuses Phase 1's infrastructure
+entirely.
+
+**Clean negative result, all three tasks:** `C_t` is never the best signal
+at any budget once a real threshold-comparison bug (a `C_t` value plateau on
+15% of cartpole's sites, causing a spurious zero-effect result at low
+budgets) was found and fixed. Reacher: KL wins at every budget — the
+**opposite** ranking from Task 4a's own headline reacher result, which used
+a KL-derived recall label rather than genuine error reduction. Pendulum:
+`C_t` is consistently the *worst* signal. This does not contradict Gate 1
+(a different, stricter, more operational question) but does mean `C_t`'s
+statistical incremental value has not been shown to translate into a better
+budget-allocation policy than the cheap baselines, under the design tested.
 
 ---
 
@@ -316,7 +353,21 @@ mean-regression-sandbagging loophole. Not started.
    regenerated in this audit — only the downstream causal test was fixed and
    re-verified). Noted in `rng_bug_audit.md`; low priority since it affects
    no live number.
-6. **The venue/timeline question (AAMAS 2027 deadlines vs. Task 6/7's
-   engineering scope)** — explicitly a decision for the user, not
-   investigated or resolved here. This is the one remaining item before
-   Task 6 can be greenlit.
+6. ~~The venue/timeline question~~ — **resolved**: build at full rigor, no
+   compressed scope. Task 6 was greenlit and started on this basis.
+7. **Task 6's actor-collapse finding is unresolved.** 10/13 trained policies
+   show near-constant saturated actions; whether this is a genuine training
+   pathology or a near-optimal bang-bang solution for these underactuated
+   tasks has not been determined. Proposed diagnostic (compare against known
+   benchmark reward for cartpole/pendulum swingup) not yet run. The
+   retrain-or-proceed decision is explicitly deferred until it is.
+8. **§11.1/§11.2 (cartpole atom #156's suspected incremental-R² copy/reuse
+   bug, and the SAE pipeline's own reproducibility) have not been
+   independently investigated by this session** — the provisional hedge
+   applied to Task 5/Phase 3's cartpole-#156 claims (see above) was applied
+   on instruction, not after confirming or locating the underlying bug.
+   Actually investigating and closing §11.1/§11.2 remains open.
+9. **Task 8's fixed-action design (zero out error on checked sites) is a
+   simplification** — a more realistic partial-correction model was not
+   tested and might change which signal wins; noted in its own deliverable's
+   caveats.

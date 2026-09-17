@@ -6,13 +6,16 @@ was run, every result/metric produced, and every finding — updated as work
 lands. This is a working log, not a polished deliverable; the per-task
 deliverables in `outputs/deliverables/` are the citable write-ups.
 
-**Session start:** 2026-09-16 · **Latest update:** 2026-09-17, RNG-bug-scope
-audit and carried-forward cleanup complete · **Status:** Tasks 1, 2, 3, 4, 4a,
-5 all complete, plus the standalone Phase-3-sign diagnostic and the full
-RNG-bug audit (Phases 2, 3, 6 + addenda fixed and re-verified) and both
-carried-forward cleanup items (cartpole atom #156 re-run, difficulty-matched
-FULL-vs-PARTIAL comparison). Task 6 (Path B) and Task 7 (learned correction,
-revised design) remain NOT STARTED — both correctly gated (Task 6 on Tasks
+**Session start:** 2026-09-16 · **Latest update:** 2026-09-18, Task 8 added +
+synthesis precision fix + Task 6/Path B paused mid-evaluation for a real
+actor-collapse finding (investigation not yet concluded) · **Status:** Tasks
+1, 2, 3, 4, 4a, 5, 8 all complete, plus the standalone Phase-3-sign diagnostic
+and the full RNG-bug audit (Phases 2, 3, 6 + addenda fixed and re-verified)
+and both carried-forward cleanup items (cartpole atom #156 re-run,
+difficulty-matched FULL-vs-PARTIAL comparison). Task 6 (Path B) has 13
+actor-critic policies trained but paused for an actor-collapse finding — see
+its own section below, not resolved. Task 7 (learned correction, revised
+design) remains NOT STARTED — both correctly gated (Task 6 on Tasks
 1–5 closing with time/budget remaining **and the venue/timeline question**,
 which is explicitly flagged as a decision for the user, not the coding agent).
 See `GAP_CLOSING_FINAL_SUMMARY.md` for the consolidated final deliverable.
@@ -376,10 +379,160 @@ reconstruction, on every task).
 
 ## Task 6 — Path B (real actor-critic gated perception)
 
-**Status:** NOT STARTED — correctly gated. Go/no-go criteria (Tasks 1–5
-closed and stable, time/budget remaining beyond what 1–5 consumed, venue
-question resolved) not yet met while Task 3 is still training. No design or
-implementation work has begun.
+**Status:** STARTED (venue question resolved: "build it properly," full
+rigor, all 3 tasks/full seed counts), IN PROGRESS, PAUSED on a real finding
+before the gated-perception evaluation could be trusted.
+
+**What was built:** `src/model/actor_critic.py` (Actor/Critic networks,
+lambda-return, imagine_rollout, a differentiable torch port of Phase 1's
+`reward_from_decoded_obs`), `run_task6_actor_critic_training.py` (DreamerV3-
+style alternating loop: collect real episodes under the current actor →
+fine-tune the world model on the growing replay buffer → train actor/critic
+via imagination through the updated model — a real scope expansion from
+"reuse the frozen world model as-is," made necessary after pure-imagination
+training against the truly-frozen model showed zero learning: cartpole's
+frozen model was trained on uniform-random data that empirically never gets
+anywhere near the swingup goal, confirmed directly, max cos_pole ≈ −0.72 over
+500 random real steps vs. +1.0 = upright).
+
+**Pendulum needed reward shaping.** Its exact reward (orientation cos >
+0.9903) was found in 0/500 random real steps and 0/2000 in a larger check —
+essentially zero gradient signal for pure-imagination training. Added a
+dense training-only proxy reward (`(orientation_zz+1)/2`, same rescaling
+style as cartpole's existing proxy) for pendulum's actor-critic training
+only; real reward stays unshaped for all evaluation. Confirmed via real-env
+eval: the shaped-trained actor reaches orientation_zz up to 0.99999 (genuine
+swing to vertical) but doesn't yet stabilize there long enough to trigger the
+tight exact-reward window — a specific, real, reportable finding (learns to
+swing up, not yet to balance), not a training failure.
+
+**All 13 policies trained** (cartpole ×5, reacher ×4, pendulum ×4), each via
+12 alternating loops, real reward tracked throughout. Final real rewards:
+cartpole 0.14–0.20, reacher 0.08–0.24 (genuine multi-fold improvement over
+random baselines), pendulum's exact reward stayed near-zero (0.0001–0.0038)
+consistent with the swing-up-not-balance finding above.
+
+**Actor collapse found, not yet resolved.** Building the gated-perception
+evaluation harness surfaced a serious concern: real-env action traces show
+**10 of 13 policies (all cartpole, all pendulum, 1/4 reacher) collapsed to a
+near-constant, single-direction saturated action** (std ≈0.05, pinned near
+±1.0 on one action dimension) — confirmed across full trajectories, not just
+at initialization. Reward still improved during training because a
+near-constant hard push is a real, partially effective swing-up strategy for
+these underactuated tasks — **this may not be a pathology**: cartpole/
+pendulum swingup are exactly the class of problem where time-optimal control
+theory (Pontryagin's maximum principle) predicts bang-bang-like solutions are
+genuinely close to optimal, not just a degenerate local minimum. Reacher, by
+contrast, is target-dependent and multi-dimensional — no fixed action solves
+it regardless of target location — and 3/4 reacher seeds retained genuine
+closed-loop action diversity (std≈0.998, using both action dimensions).
+
+**Two competing explanations, not yet distinguished:** (1) genuine entropy-
+collapse pathology leaving real reward on the table, fixable with stronger/
+adaptive entropy regularization; (2) the collapsed policies are already
+close to these tasks' actual near-bang-bang optimum, and more entropy would
+only add noise, not capability. **The recommended cheap diagnostic — compare
+achieved reward against known DreamerV3/comparable benchmark performance on
+cartpole-swingup and pendulum-swingup, no new training needed — was proposed
+but not yet run** when work paused here to address a scope/sequencing
+question and produce Task 8 instead. Whichever explanation holds, reacher's
+3 non-collapsed seeds remain valid for gated-perception evaluation
+regardless, and were not blocked by this finding — evaluating them was not
+resumed in this pass either, pending the explicit decision to prioritize
+Task 8 first (see below).
+
+**Files:** `src/model/actor_critic.py`, `run_task6_actor_critic_training.py`,
+`run_task6_one.py`, `run_task6_gated_perception_eval.py` (harness built,
+found the collapse before producing a trustworthy full-batch result — one
+real bug already fixed in it: `make_env` was called with an invalid keyword
+argument, caught before any reported numbers depended on it),
+`outputs/task6_actor_critic/{cartpole,reacher,pendulum}/seed*/actor_critic.pt`
+(13 trained policies, all retained — none discarded).
+
+**Decision, per explicit instruction:** the diagnostic and any retrain
+decision are deferred until after the diagnostic actually runs — not decided
+in this pass either way. Task 8 (below) was prioritized instead, as agreed,
+since it's cheap, independent, and provides a fallback utility result
+regardless of how Path B resolves.
+
+---
+
+## Task 8 — Error-Reduction Adaptive Reliance (distinct from Task 6)
+
+**Status:** Complete. Explicitly a separate task from Task 6/Path B, not a
+redefinition of it — Task 6's sunk work (13 trained policies, the collapse
+finding) is retained and untouched by this task.
+
+**The question:** at a fixed real-observation query budget, does selecting
+states using `C_t` reduce actual accumulated future imagination error
+(`E^state`, Phase 1's own metric) more than KL/Recon/EMARecon/ensemble
+disagreement? Distinct from Task 4a's routing result, which scored recall
+against a KL-*derived* label — this scores genuine error reduction against
+real ground truth.
+
+**Built:** `run_task8_error_reduction.py`, reusing Phase 1's trajectory
+collection and `imagined_vs_real_obs` entirely — no new training. 6,000
+sites/task, 50/50 calibration/evaluation split (calibration-only threshold
+selection, no evaluation-split leakage), 5 query budgets (5–50%).
+
+**A real bug found and fixed before reporting:** `C_t` has a large exact
+plateau at its maximum value on cartpole (15% of sites tied at the single
+max — a genuine saturation property of the discounted-history statistic, not
+a data artifact). The original `>` threshold comparison excluded every tied
+site when the calibration cutoff landed on that plateau, producing a
+spurious `n_checked=0` / `ΔE=0` result for `C_t` at cartpole's 5%/10%
+budgets. Fixed by changing to `>=` (the cutoff *value* still comes only from
+calibration — a comparison-operator fix, not a threshold-selection change).
+
+**Result — clean, consistent negative finding, all three tasks:** `C_t` is
+**never the best signal** at any budget where its selection isn't distorted
+by the cartpole plateau. Reacher: KL wins at every budget (the *opposite*
+ranking from Task 4a's own headline reacher result, which used a
+KL-derived recall label rather than genuine error reduction). Pendulum:
+Recon then EMARecon win; `C_t` is consistently the *worst* of the four
+signals. Cartpole: Recon wins at every budget from 20% up.
+
+**This does not contradict Gate 1** (C_t's incremental regression
+information is unaffected) — it is a stricter, more operational question
+(does that information translate into a better budget-allocation policy
+under a fixed correction action), and the answer here is no, on all three
+tasks, under the tested design.
+
+**Files:** `run_task8_error_reduction.py`,
+`outputs/task8_error_reduction/task8_results.json`,
+`outputs/deliverables/task_8_error_reduction.md`.
+
+---
+
+## Synthesis precision fix — Task 5's causal-mechanism document
+
+**Status:** Complete. Documentation-only, no new compute.
+
+**What changed:** the bottom-line "the representation's causal role
+bifurcates, independently confirmed twice" framing treated both legs of the
+finding at the same confidence level, which is inaccurate. Split into:
+**Leg A (dense-direction dissociation)** — kept at full strength, no hedge —
+rests on Phase 6's direct steering and Task 3's POMDP seed sweep, neither of
+which depends on the SAE pipeline or any SAE-derived number. **Leg B
+(sparse-atom mirror image)** — reacher's atom #612 stays fully confirmed;
+cartpole's atom #156 (currently the strongest single causal result in the
+project) is now explicitly flagged **provisional**, pending independent
+verification of its incremental-R² figure (suspected copy/reuse issue) and
+the SAE pipeline's own reproducibility — neither of which this session has
+independently verified or found; the hedge was applied on instruction, not
+after confirming the underlying bug myself.
+
+**Files updated:** `outputs/deliverables/task_5_causal_mechanism_synthesis.md`
+(bottom-line statement, the "both halves" sentence, the "What remains open"
+item), `outputs/deliverables/phase3_sae_decomposition.md` (header verdict,
+the atom-156 subsection's "What this changes" note),
+`GAP_CLOSING_FINAL_SUMMARY.md` (Section 5).
+
+**Open item this creates:** §11.1 (the suspected #156 incremental-R² copy/
+reuse bug) and §11.2 (SAE pipeline reproducibility) have not actually been
+investigated yet — the hedge is applied precautionarily, per instruction,
+not because the bug was found and confirmed. Investigating and resolving
+§11.1/§11.2 themselves remains open.
 
 ---
 
