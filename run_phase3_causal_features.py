@@ -146,6 +146,20 @@ def effect_for_direction(model, cfg, trajs, sites, v, clf, sc, domain, ps_base_c
 
 
 def run_task_causal(task, spec, cfg, sae, best_atom_info):
+    """RNG-bug audit fix (gap-closing spec, priority #2): the RSSM's stochastic-
+    latent sampling draws from PyTorch's global unseeded RNG in collect_
+    trajectories (below) AND in effect_for_direction/continue_probe_and_external's
+    ablation-continuation rollouts (called later in this function via
+    imagine_step). torch.manual_seed must be set once, here, before either is
+    called -- covering the whole per-task causal-test pipeline in one fixed
+    sequential order, the same pattern used in run_phase1_external_validation.
+    run_task. Verified: prior to this fix, two reruns of this function produced
+    different d_e_state values for cartpole's atom #139 (0.04356 vs 0.04427,
+    z=3.68 vs 3.81) despite identical inputs and a fixed-seed collect_trajectories
+    call -- the ablation-continuation rollouts were consuming additional
+    unseeded RNG state left over from wherever collect_trajectories happened to
+    leave it."""
+    torch.manual_seed(SEED + 500)
     print(f"\n{'='*78}\n{task.upper()} — §9.5-9.7 CAUSAL FEATURE TESTS\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))

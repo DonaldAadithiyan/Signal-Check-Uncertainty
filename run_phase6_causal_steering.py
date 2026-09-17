@@ -110,6 +110,16 @@ def continue_and_imagine(model, traj, t, h_new, clf, scaler, domain, horizon=K_H
 
 
 def run_task_steering(task, spec, cfg):
+    """RNG-bug audit fix (gap-closing spec, priority #3): same pattern as
+    run_phase1_external_validation.run_task and run_phase3_causal_features.
+    run_task_causal -- collect_trajectories and the ablation/steering
+    continuation rollouts (continue_and_imagine -> imagine_step) both draw
+    from PyTorch's global unseeded RNG via RSSM._straight_through_sample.
+    Verified: pre-fix, two reruns of this function produced different
+    e_state_mean at lambda=+2sigma (0.4611 vs 0.4638). Fixed by seeding once
+    here, before collect_trajectories, covering the whole per-task steering
+    pipeline in fixed sequential order."""
+    torch.manual_seed(SEED + 900)
     print(f"\n{'='*78}\n{task.upper()} — PHASE 6 CAUSAL STEERING\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))

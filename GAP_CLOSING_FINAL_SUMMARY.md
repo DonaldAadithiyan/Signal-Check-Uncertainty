@@ -1,8 +1,9 @@
 # Gap-Closing Spec — Final Summary
 
 Consolidated results for `Task_Spec_Closing_Gap_To_Target_Claim.md`, its
-Pillar-4 addendum, and the two follow-on diagnostic/design tasks (sign-check,
-Task 7). All running work is complete as of this document. Per-task detail
+Pillar-4 addendum, the two follow-on diagnostic/design tasks (sign-check,
+Task 7), and the RNG-Bug Scope Audit spec (which closed Task 6/7's remaining
+blocker). All running work is complete as of this document. Per-task detail
 and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
 `outputs/deliverables/`.
 
@@ -24,9 +25,12 @@ and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
 | 3 — Phase 4 seed sweep + multi-step causal upgrade | ✅ Done | **Verdict revised: MIXED (3/6), down from single-pair 4/6.** Causal-on-E^state claim retracted. |
 | 4 — Distribution-shift test | ✅ Done | Mixed, task-dependent: 2/3 tasks strengthen under noise, reacher degrades. Causal null replicates under shift. |
 | 4a — Pillar 4 write-up (Path A) | ✅ Done | Honest, task-dependent routing result written up at full evidentiary standard. |
-| 5 — Causal mechanism synthesis | ✅ Done | Bifurcated mechanism: dense direction causal on self-report only; sparse atom causal on real behavior (reacher). |
+| 5 — Causal mechanism synthesis | ✅ Done | Bifurcated mechanism: dense direction causal on self-report only; sparse atom causal on real behavior. |
 | Diagnostic — sign of Phase 3 ablation effect | ✅ Done | Ablation makes `E^state` **worse** on cartpole/reacher — atom is load-bearing, not removable. |
-| 6 — Path B (real actor-critic) | ⏸ Not started | Correctly gated: go/no-go criteria not yet met. |
+| RNG-bug scope audit | ✅ Done | Bug confirmed in Phases 2/3/6 + addenda, fixed, re-verified. No verdict changes except cartpole's atom re-run. |
+| — Cartpole atom re-run (#156) | ✅ Done | **Strongest causal result in the project** — z=+10.3 (E^state) and z=−5.0 (probe), only atom meeting the simultaneous-effect bar. |
+| — Difficulty-matched FULL-vs-PARTIAL | ✅ Done | KL-dependent, non-monotonic: PARTIAL stronger at KL extremes, FULL stronger mid-range. Does not overturn MIXED verdict. |
+| 6 — Path B (real actor-critic) | ⏸ Not started | Blocker resolved (RNG audit done); still gated on venue/timeline decision (§5, flagged for user). |
 | 7 — Learned correction mechanism (revised) | ⏸ Not started | Correctly gated on Task 6. |
 
 ---
@@ -121,6 +125,20 @@ causal effect size scales strongly with local KL within both conditions
 FULL-vs-PARTIAL causal gap is attributable to this confound, not cleanly
 isolated to the observability manipulation.
 
+**Follow-on: the confound resolved (RNG-bug audit spec).** A proper
+difficulty-matched comparison — pooling FULL+PARTIAL sites and binning by
+shared KL quantile rather than each condition's own separate terciles —
+found the relationship is **KL-dependent and non-monotonic**: PARTIAL is
+stronger at the lowest and highest KL bins (+7.63±7.50 vs −3.58±1.75, and
+−31.06±7.86 vs −21.36±9.92), but **FULL is stronger in the middle bin**
+(−7.06±3.76 vs −4.67±2.02). The lowest bin also shows a striking sign flip
+(PARTIAL positive, FULL negative) that is flagged as needing closer scrutiny
+rather than built upon, since it comes from the noisiest, most sample-size-
+variable corner of the design. This does not overturn the MIXED verdict — it
+replaces "PARTIAL's causal effect may be partly a KL artifact" with a more
+precise, still-cautious "the relationship is genuinely non-monotonic in KL,
+not simply stronger-for-partial-everywhere."
+
 **Cross-references updated:** Phase 4's original deliverable now carries a
 superseded-status banner; Task 5's synthesis notes this as a second,
 independent replication of the same "dense-direction-causal-on-self-report-
@@ -187,15 +205,24 @@ one account: **the representation's causal role bifurcates.**
    effect on genuine external imagination quality** on any task. Now
    independently replicated a second time by Task 3's seed sweep (same
    pattern, different phase, different correction method).
-2. **Sparse SAE atom #612 (reacher only)**: the mirror image — causally moves
-   genuine `E^state` (z=+2.6, 98th pct) while leaving the probe readout
-   untouched, and removes its own incremental-R² advantage on ablation.
-   Confirmed (Task 2) to be the same atom across correlational and causal
-   testing.
+2. **Sparse SAE atom #612 (reacher)**: causally moves genuine `E^state`
+   (z=+2.7, 98th pct) while leaving the probe readout untouched, and removes
+   its own incremental-R² advantage on ablation. Confirmed (Task 2) to be the
+   same atom across correlational and causal testing. KL-non-redundant
+   (r(KL)≤0.055, held-out).
+3. **Update (RNG-bug audit follow-on) — sparse atom #156 (cartpole)**:
+   originally causally tested on a since-retracted atom (#139, weak result);
+   re-run on the split-sample-confirmed replacement (#156) produces the
+   **strongest causal result in the entire project** — z=+10.3 on `E^state`
+   **and** z=−5.0 on the probe readout, the only atom to meet the "both
+   readouts move" bar. Unlike #612, #156 is **not** KL-non-redundant
+   (r(KL)=+0.499) — it is causally decisive but correlationally KL-redundant,
+   the mirror-image scoping to reacher's atom.
 
-These are two independent, causally-independent objects (the atom carries
-negligible weight in `v`'s own reconstruction) — not conflicting halves of
-one finding.
+These are causally-independent objects (each atom carries negligible weight
+in `v`'s own reconstruction) — not conflicting halves of one finding. Claim 2
+now has two-task causal evidence (cartpole, reacher), though only reacher's
+atom is also KL-non-redundant.
 
 ---
 
@@ -204,11 +231,11 @@ one finding.
 Near-zero-cost re-read of an already-computed field
 (`ablation_effect.d_e_state`) that had never been surfaced in prose.
 
-| Task | Atom | Signed mean Δ`E^state` | Interpretation |
+| Task | Atom | Signed mean Δ`E^state` (RNG-fixed, verified) | Interpretation |
 |---|---:|---:|---|
-| cartpole | #139 | **+0.0449** | Ablation makes imagination **worse** |
-| reacher | #612 | **+0.0304** | Ablation makes imagination **worse** |
-| pendulum | #310 | +0.0055 (null) | No reliable effect either way |
+| cartpole | #139 (retracted) | **+0.0447** | Ablation makes imagination **worse** |
+| reacher | #612 | **+0.0321** | Ablation makes imagination **worse** |
+| pendulum | #310 | +0.0061 (null) | No reliable effect either way |
 
 **The atom is load-bearing information, not a removable flaw** — on both
 tasks where the causal effect clears the null, removing the feature hurts
@@ -219,11 +246,48 @@ that motivated Task 7's design (a *learned correction*, not suppression).
 
 ---
 
+## RNG-Bug Scope Audit and Carried-Forward Cleanup
+
+**Full write-up:** `outputs/deliverables/rng_bug_audit.md`.
+
+Audited every script in Phases 2, 3, 4, 6 and their addenda for the same
+unseeded-RSSM-sampling bug class Task 1 found in Phase 1. Confirmed the bug
+was the *only* reproducibility issue in the codebase (no dropout exists; one
+`torch.randn` call is training-time-only and moot for loaded SAE checkpoints).
+
+**Fixed and re-verified (byte-identical across independent reruns), in
+priority order:** (1) Task 3's seed-sweep code — already correct, no fix
+needed; (2) Phase 3's causal ablation code — bug confirmed, fixed, small
+magnitude corrections, no verdict changes; (3) Phase 6's steering/null code —
+bug confirmed, fixed, small corrections, no verdict changes; (4) Phase 2's
+scrambling code — bug confirmed, fixed, moderate corrections (largest:
+cartpole's external z, 26.9→19.6), no sign or verdict changes on any task.
+
+**Two carried-forward cleanup items resolved:**
+- **Cartpole's retracted atom (#139→#156)**: re-run produces the strongest
+  causal result in the project (see Section 5's update above).
+- **Task 3's difficulty confound**: a proper matched comparison (pooled KL
+  quantile bins, not per-condition terciles) found the FULL-vs-PARTIAL causal
+  relationship is KL-dependent and non-monotonic, not simply "partial is
+  always stronger" (see Section 3's update above).
+
+**Bottom line:** no previously-reported qualitative verdict flipped as a
+result of this audit — all corrections are magnitude-level, except cartpole's
+atom-156 re-run, which is a genuine new finding. **This closes the blocker
+Task 6/7's go/no-go criteria named** (Tasks 1–5 "closed and stable, no open
+corrections pending").
+
+---
+
 ## 6 & 7 — Gated, not started
 
-**Task 6 (Path B — real actor-critic gated perception):** go/no-go criteria
-(Tasks 1–5 closed and stable, time/budget remaining, venue question resolved)
-not met. No design or implementation work has begun.
+**Task 6 (Path B — real actor-critic gated perception):** the RNG-bug-audit
+blocker is now resolved. The remaining go/no-go criterion — **the
+venue/timeline question (AAMAS 2027's Oct 1/8 deadlines vs. this task's
+engineering scope)** — is explicitly flagged as a decision for the user, not
+something to investigate or resolve unilaterally (see the task spec's
+§5). No design or implementation work has begun, and none should until that
+decision is made.
 
 **Task 7 (confusion-gated residual correction, revised design):** gated on
 Task 6. Current spec (superseding an earlier draft) corrects the transition
@@ -236,13 +300,23 @@ mean-regression-sandbagging loophole. Not started.
 
 ## Open items carried forward
 
-1. **Unseeded-RNG bug in Phases 2/3/6 and their addenda** — same class of bug
-   Task 1 fixed for Phase 1, confirmed present, not yet fixed or re-verified
-   elsewhere.
-2. **Cartpole's SAE causal test uses a retracted atom** (#139, not the
-   split-sample-confirmed #156) — flagged, not fixed.
+1. ~~Unseeded-RNG bug in Phases 2/3/6 and their addenda~~ — **resolved**, see
+   the RNG-Bug Scope Audit section above.
+2. ~~Cartpole's SAE causal test uses a retracted atom~~ — **resolved**, #156
+   re-run, see Section 5's update above.
 3. **`Reframed_AAMAS2027_Project.md` lives only in `~/Downloads`**, not
-   tracked in this git repo — worth moving in if it's meant to be canonical.
-4. **A fully difficulty-matched FULL-vs-PARTIAL causal comparison** (not just
-   within-condition binning) was not attempted in Task 3 and would fully
-   resolve the KL confound identified there.
+   tracked in this git repo — still open, worth moving in if it's meant to be
+   canonical.
+4. ~~A fully difficulty-matched FULL-vs-PARTIAL causal comparison~~ —
+   **resolved**, see Section 3's update above (KL-dependent, non-monotonic
+   relationship found).
+5. **`run_phase3_sae_decomposition.py`'s own `collect_trajectories` call
+   remains technically unseeded**, though no currently-cited number depends
+   on a fresh rerun of it (the atom-selection dataset it builds was not
+   regenerated in this audit — only the downstream causal test was fixed and
+   re-verified). Noted in `rng_bug_audit.md`; low priority since it affects
+   no live number.
+6. **The venue/timeline question (AAMAS 2027 deadlines vs. Task 6/7's
+   engineering scope)** — explicitly a decision for the user, not
+   investigated or resolved here. This is the one remaining item before
+   Task 6 can be greenlit.

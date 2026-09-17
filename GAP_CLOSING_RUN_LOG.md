@@ -6,12 +6,74 @@ was run, every result/metric produced, and every finding — updated as work
 lands. This is a working log, not a polished deliverable; the per-task
 deliverables in `outputs/deliverables/` are the citable write-ups.
 
-**Session start:** 2026-09-16 · **Session end:** 2026-09-17 · **Final status:**
-Tasks 1, 2, 3, 4, 4a, 5 all complete, plus the standalone Phase-3-sign
-diagnostic. Task 6 (Path B) and Task 7 (learned correction, revised design)
-remain NOT STARTED — both correctly gated (Task 6 on Tasks 1–5 closing with
-time/budget remaining and the venue question resolved; Task 7 on Task 6). See
-`GAP_CLOSING_FINAL_SUMMARY.md` for the consolidated final deliverable.
+**Session start:** 2026-09-16 · **Latest update:** 2026-09-17, RNG-bug-scope
+audit and carried-forward cleanup complete · **Status:** Tasks 1, 2, 3, 4, 4a,
+5 all complete, plus the standalone Phase-3-sign diagnostic and the full
+RNG-bug audit (Phases 2, 3, 6 + addenda fixed and re-verified) and both
+carried-forward cleanup items (cartpole atom #156 re-run, difficulty-matched
+FULL-vs-PARTIAL comparison). Task 6 (Path B) and Task 7 (learned correction,
+revised design) remain NOT STARTED — both correctly gated (Task 6 on Tasks
+1–5 closing with time/budget remaining **and the venue/timeline question**,
+which is explicitly flagged as a decision for the user, not the coding agent).
+See `GAP_CLOSING_FINAL_SUMMARY.md` for the consolidated final deliverable.
+
+---
+
+## RNG-Bug Scope Audit and Carried-Forward Cleanup
+
+**Status:** Complete. Full write-up: `outputs/deliverables/rng_bug_audit.md`.
+
+**Audit finding:** the only RNG-reproducibility issue anywhere in the
+codebase is RSSM stochastic-latent sampling (`Categorical.sample()`), the
+same bug class Task 1 fixed for Phase 1. No dropout exists in the model. One
+`torch.randn` call (SAE decoder init) is training-time-only and moot for
+already-trained, checkpoint-loaded SAEs. Confirmed present and unfixed in:
+`run_phase2_rigor_controls.py`, `run_phase3_causal_features.py`,
+`run_phase6_causal_steering.py`, `run_addendum_phase6_hardening.py`.
+Confirmed **already correctly seeded** (no fix needed): `run_phase4_seed_
+sweep_analysis.py`, `run_phase4_pomdp_analysis.py` (both from the prior
+session's Task 1-pattern fixes). `run_addendum_phase3_hardening.py` confirmed
+unaffected (no RSSM sampling calls at all).
+
+**Fixed and re-verified (byte-identical across independent reruns), in
+priority order:**
+1. `run_phase4_seed_sweep_analysis.py` — already correct, verified, no
+   change to Task 3's MIXED (3/6) verdict.
+2. `run_phase3_causal_features.py` — bug confirmed (two pre-fix reruns
+   differed), fixed, verified. Small magnitude corrections to §9.5–9.7's
+   numbers, no verdict changes on reacher/pendulum.
+3. `run_phase6_causal_steering.py` + `run_addendum_phase6_hardening.py` —
+   bug confirmed, fixed, verified. Small magnitude corrections, no change to
+   the "probe decisive / E^state null" verdict on any task.
+4. `run_phase2_rigor_controls.py` — bug confirmed, fixed, verified. Moderate
+   magnitude corrections (largest: cartpole's external z, 26.9→19.6), no sign
+   or verdict changes on any of the three tasks.
+
+**Carried-forward cleanup #1 — cartpole's retracted atom, resolved.** Re-ran
+the causal ablation protocol on cartpole's split-sample-confirmed atom (#156,
+replacing the retracted #139). **Result: #156 is the strongest causal result
+in the entire project** — z=+10.3 on `E^state` and z=−5.0 on the probe
+readout, the only atom to meet §9.6's original "simultaneous effect" bar.
+Verified byte-reproducible. Propagated to `phase3_sae_decomposition.md` and
+`task_5_causal_mechanism_synthesis.md`'s Claim 2.
+
+**Carried-forward cleanup #2 — Task 3's difficulty-matched comparison,
+resolved.** Built `run_phase4_difficulty_matched_comparison.py`: pools
+FULL+PARTIAL sites, bins by KL quantile across the pooled distribution,
+compares causal z-scores within matched bins across all 5 seeds. **Result:
+PARTIAL is stronger in 2/3 matched bins (lowest and highest KL) but FULL is
+stronger in the middle bin** — a KL-dependent, non-monotonic relationship,
+not a clean confirmation or refutation of the raw aggregate gap. The
+lowest-KL bin shows a striking sign flip (PARTIAL positive, FULL negative)
+that is flagged as needing a closer look rather than built upon as-is (noisy,
+smallest/most-variable sample of the three bins). Does not overturn the
+MIXED (3/6) verdict.
+
+**What did not change:** no previously-reported qualitative verdict in
+Phases 1, 2, 3, or 6 flipped sign or significance as a result of this audit
+— all corrections are magnitude-level (within expected stochastic-sampling
+noise), except cartpole's atom-156 re-run, which is a genuine new, stronger
+finding rather than a rounding correction.
 
 ---
 

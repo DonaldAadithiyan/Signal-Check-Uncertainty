@@ -51,6 +51,7 @@ Runs on the 3 EXISTING frozen models. No retraining. CPU only.
 import os
 import json
 import numpy as np
+import torch
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import Ridge, LinearRegression
 from sklearn.preprocessing import StandardScaler
@@ -100,6 +101,13 @@ def real_ct_for_traj(kl_traj, kl_median, gamma):
 
 
 def run_scrambling(task, spec, cfg, gamma):
+    """RNG-bug audit fix (gap-closing spec, priority #4): same pattern as
+    the other three fixed scripts -- collect_trajectories and the subsequent
+    imagined_vs_real_obs calls both draw from PyTorch's global unseeded RNG.
+    Seeded once here, lowest priority of the four since nothing currently
+    gated on Task 6/7 cites a Phase-2-specific number, but fixed for the same
+    correctness reason."""
+    torch.manual_seed(SEED)
     print(f"\n{'='*78}\n{task.upper()} — §7.1 TEMPORAL SCRAMBLING\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))
@@ -200,6 +208,9 @@ def run_scrambling(task, spec, cfg, gamma):
 # ─── §7.2 EMA head-to-head ────────────────────────────────────────────────────
 
 def run_ema_headtohead(task, spec, cfg, gamma):
+    """RNG-bug audit fix (gap-closing spec, priority #4): same fix as
+    run_scrambling above."""
+    torch.manual_seed(SEED)
     print(f"\n{'='*78}\n{task.upper()} — §7.2 EMA RECONSTRUCTION HEAD-TO-HEAD\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))

@@ -118,6 +118,13 @@ def linear_slope(x, y):
 
 
 def run_task_hardening(task, spec, cfg):
+    """RNG-bug audit fix (gap-closing spec, priority #3, same script family as
+    run_phase6_causal_steering.run_task_steering): collect_trajectories and
+    continue_multi_step's imagine_step calls both draw from PyTorch's global
+    unseeded RNG. This is the script that produces the actual reported
+    z=+7..+16 dose-response-slope-vs-null numbers cited throughout Task 4/5 --
+    fixed the same way, seeding once here before any RSSM sampling occurs."""
+    torch.manual_seed(SEED + 900)
     print(f"\n{'='*78}\n{task.upper()} — ADDENDUM §5.1-§5.5\n{'='*78}")
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))
