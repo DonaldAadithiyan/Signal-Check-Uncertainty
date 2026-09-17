@@ -1,0 +1,248 @@
+# Gap-Closing Spec — Final Summary
+
+Consolidated results for `Task_Spec_Closing_Gap_To_Target_Claim.md`, its
+Pillar-4 addendum, and the two follow-on diagnostic/design tasks (sign-check,
+Task 7). All running work is complete as of this document. Per-task detail
+and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
+`outputs/deliverables/`.
+
+**Target claim being closed:**
+> Recurrent world models implicitly track accumulated model misspecification
+> in their hidden state. We identify this latent predictive-difficulty
+> variable, separate its externally predictive component from ordinary
+> instantaneous uncertainty, causally characterize its mechanism, and show how
+> it governs reliability under partial observability and distribution shift.
+
+---
+
+## Status at a glance
+
+| Task | Status | One-line result |
+|---|---|---|
+| 1 — Pendulum incremental-R² reconciliation | ✅ Done | Root cause: unseeded RSSM sampling bug, fixed. Reconciled value **+0.0019**. |
+| 2 — Atom-identity check (reacher) | ✅ Done | Confirmed: causally-tested and held-out-confirmed atom are the same (#612). |
+| 3 — Phase 4 seed sweep + multi-step causal upgrade | ✅ Done | **Verdict revised: MIXED (3/6), down from single-pair 4/6.** Causal-on-E^state claim retracted. |
+| 4 — Distribution-shift test | ✅ Done | Mixed, task-dependent: 2/3 tasks strengthen under noise, reacher degrades. Causal null replicates under shift. |
+| 4a — Pillar 4 write-up (Path A) | ✅ Done | Honest, task-dependent routing result written up at full evidentiary standard. |
+| 5 — Causal mechanism synthesis | ✅ Done | Bifurcated mechanism: dense direction causal on self-report only; sparse atom causal on real behavior (reacher). |
+| Diagnostic — sign of Phase 3 ablation effect | ✅ Done | Ablation makes `E^state` **worse** on cartpole/reacher — atom is load-bearing, not removable. |
+| 6 — Path B (real actor-critic) | ⏸ Not started | Correctly gated: go/no-go criteria not yet met. |
+| 7 — Learned correction mechanism (revised) | ⏸ Not started | Correctly gated on Task 6. |
+
+---
+
+## 1. Pendulum incremental-R² reconciliation
+
+**The problem was bigger than reporting inconsistency.** Three different
+pendulum incremental-R² values had been reported (+0.0006, +0.0021, and
+several ad hoc reruns landing anywhere from +0.0014 to +0.0020). Root-cause
+investigation found this wasn't drift in aggregation — it was a genuine
+**unseeded-RNG bug**: the RSSM's stochastic-latent sampling
+(`torch.distributions.Categorical.sample()`) draws from PyTorch's global RNG
+at every timestep, and `torch.manual_seed()` was never called anywhere in
+`run_phase1_external_validation.py`. Two "identical" reruns — same env seed,
+same model weights — produced genuinely different `h_t` trajectories (up to
+0.87 absolute divergence after 500 steps).
+
+**Fixed** by seeding once at the top of the per-task pipeline (covers
+trajectory collection and every downstream imagination-rollout sampling call
+in fixed sequential order). **Verified fully reproducible**: two independent
+reruns now produce byte-identical results to full float precision.
+
+**Reconciled values** (canonical, reproducible):
+
+| Task | incremental R² | 95% CI | Gate 1 |
+|---|---:|---:|---:|
+| cartpole | +0.0280 | [+0.0154, +0.0433] | PASS |
+| reacher | +0.0182 | [+0.0083, +0.0309] | PASS |
+| pendulum | **+0.0019** | [+0.0001, +0.0051] | PASS (weak) |
+
+Gate 1 verdict unchanged (PASS on all 3, CI excludes zero on all 3). Every
+document that cited the old numbers was updated: Phase 1's own deliverable
+(3 internal locations), Phase 2 and Phase 6's deliverables,
+`pendulum_outlier_synthesis.md`, and the AAMAS planning doc.
+
+**Open item surfaced, not yet acted on:** the identical bug exists, unfixed,
+in Phases 2, 3, 6 and their addenda — none of those scripts call
+`torch.manual_seed` either. Not re-run here (out of scope, real compute cost)
+— **a decision on re-verifying those phases is still pending.**
+
+---
+
+## 2. Atom-identity check
+
+Confirmed explicitly, not assumed: reacher's SAE atom (#612) used in the
+causal ablation test is the same atom independently re-derived by the
+held-out split-sample selection procedure. Reacher's full evidentiary chain
+(held-out correlational confirmation → causal ablation → incremental-R²
+removal) is now closed without a gap on the same, verified feature identity.
+
+Cartpole and pendulum were correctly left out of scope — their causal tests
+used atoms that the split-sample correction later retracted (cartpole's
+replacement atom, #156, has not been causally re-tested).
+
+---
+
+## 3. Phase 4 seed sweep and multi-step causal-protocol upgrade
+
+**The long pole of this spec, and the one with the most consequential
+result.** Trained 4 new seed pairs (1717, 2929, 5151, 8383; ~4.2hr/condition
+each under concurrent load) alongside the original seed=4242, and upgraded
+the causal test from a single-step probe-decay proxy to a genuine multi-step
+`E^state`-continuation protocol, plus added a difficulty-matched-bin check.
+
+**Aggregate result (5 seed pairs):**
+
+| Metric | FULL | PARTIAL | Stronger under partial? |
+|---|---:|---:|:---:|
+| Confusion AUROC | 0.871±0.028 | **0.951±0.013** | ✅ |
+| R²(h_t, C_t) | 0.761±0.035 | **0.824±0.013** | ✅ |
+| r(C_t, E^state) | **0.568±0.060** | 0.522±0.028 | ❌ |
+| Incremental R² | **0.062±0.027** | 0.009±0.003 | ❌ |
+| Causal z, probe | −6.93±2.27 | **−9.92±1.85** | ✅ |
+| Causal z, E^state | −0.37±0.36 | 0.13±0.22 | ❌ |
+
+**Verdict revised: MIXED (3/6), not "SUPPORTS H6" (4/6).** The single most
+important correction: the original single-pair report's dramatic causal
+z-score doubling (−4.69→−10.58) on genuine external imagination quality
+**does not survive** the multi-step protocol upgrade or the 5-seed sample —
+the corrected effect is statistically indistinguishable from zero in both
+conditions. This is retracted as a headline claim, in the same spirit as
+Phase 6's own addendum-driven retraction of its external-causal-effect claim.
+
+**What survives, robustly:** confusion AUROC and `R²(h_t,C_t)` — both
+stronger under partial observability on every one of the 5 seeds, tight
+spread.
+
+**New confound identified:** the difficulty-matched-bin check found PARTIAL's
+sites are systematically higher-KL than FULL's at every matched tercile, and
+causal effect size scales strongly with local KL within both conditions
+(often an order of magnitude between low- and high-KL bins). Part of the raw
+FULL-vs-PARTIAL causal gap is attributable to this confound, not cleanly
+isolated to the observability manipulation.
+
+**Cross-references updated:** Phase 4's original deliverable now carries a
+superseded-status banner; Task 5's synthesis notes this as a second,
+independent replication of the same "dense-direction-causal-on-self-report-
+only" pattern; the AAMAS doc's header and progress note are revised.
+
+---
+
+## 4. Distribution-shift test
+
+Reused Phase 1's `imagined_vs_real_obs`/incremental-R² pipeline with
+Gaussian observation noise (σ=0.1, matching the existing Set-B convention,
+generalized to all 3 tasks via `DMCEnv`'s existing noise support), plus
+Phase 6's causal-steering dose-response, both run under clean (Set A) and
+noise-shifted (Set B) conditions.
+
+| Task | R² (Set A) | R² (Set B) | Verdict |
+|---|---:|---:|:---:|
+| cartpole | +0.0279 | +0.0684 | STRENGTHENS |
+| reacher | +0.0184 | +0.0087 | DEGRADES |
+| pendulum | +0.0019 | +0.0259 | STRENGTHENS |
+
+Two of three tasks show `C_t`'s external-validity advantage **strengthening**
+under noise (opposite of the naive prior); reacher degrades, plausibly
+because it already has the highest baseline `r(C_t,KL)`, so noise likely
+pushes more shared variance into KL directly (the same ceiling-effect pattern
+Phase 4 found for partial observability). The causal-steering null result on
+`E^state` **replicates cleanly under shift on all 3 tasks** — no z-score
+exceeds |1.43| in either condition. Distribution shift neither resurrects nor
+introduces a spurious causal effect.
+
+**Verdict:** the "...and distribution shift" clause is earned with an honest,
+task-dependent account — the causal dissociation is stable under shift; the
+correlational advantage is not uniform.
+
+---
+
+## 4a. Pillar 4 write-up (Path A, committed)
+
+Wrote up the existing routing/observation-querying result at full
+evidentiary standard, no new computation — reused the already-rigorous Task R
+(KL-only routing baseline) analysis, reframed explicitly as a
+perception-triggering result, never a validated active-perception method (no
+policy exists to test task return).
+
+| Task | seeds | Δ recall (probe − KL-only) | probe wins? |
+|---|---:|---:|:---:|
+| cartpole | 5 | −0.006 ± 0.025 | 3/5, sign-unstable |
+| reacher | 3 | **+0.273 ± 0.020** | 3/3 |
+| pendulum | 3 | **−0.030 ± 0.006** | 0/3 |
+
+Named descriptively ("confusion-gated observation querying") rather than with
+a branded name implying a working method. Path B (Task 6) is explicitly
+additive upside, not something this write-up depends on.
+
+---
+
+## 5. Causal mechanism synthesis
+
+Consolidated Phase 3 and Phase 6's separately-reported causal findings into
+one account: **the representation's causal role bifurcates.**
+
+1. **Dense direction `v`**: decisively causal for the model's own confusion
+   readout (z=+7 to +16 vs. null, all 3 tasks) — but **no detectable causal
+   effect on genuine external imagination quality** on any task. Now
+   independently replicated a second time by Task 3's seed sweep (same
+   pattern, different phase, different correction method).
+2. **Sparse SAE atom #612 (reacher only)**: the mirror image — causally moves
+   genuine `E^state` (z=+2.6, 98th pct) while leaving the probe readout
+   untouched, and removes its own incremental-R² advantage on ablation.
+   Confirmed (Task 2) to be the same atom across correlational and causal
+   testing.
+
+These are two independent, causally-independent objects (the atom carries
+negligible weight in `v`'s own reconstruction) — not conflicting halves of
+one finding.
+
+---
+
+## Diagnostic — sign of the Phase 3 causal ablation effect
+
+Near-zero-cost re-read of an already-computed field
+(`ablation_effect.d_e_state`) that had never been surfaced in prose.
+
+| Task | Atom | Signed mean Δ`E^state` | Interpretation |
+|---|---:|---:|---|
+| cartpole | #139 | **+0.0449** | Ablation makes imagination **worse** |
+| reacher | #612 | **+0.0304** | Ablation makes imagination **worse** |
+| pendulum | #310 | +0.0055 (null) | No reliable effect either way |
+
+**The atom is load-bearing information, not a removable flaw** — on both
+tasks where the causal effect clears the null, removing the feature hurts
+imagination quality. This closes off direct suppression as a correction
+mechanism, consistent with the workshop paper's own Appendix E finding that
+two earlier direct-correction attempts already failed. This is the finding
+that motivated Task 7's design (a *learned correction*, not suppression).
+
+---
+
+## 6 & 7 — Gated, not started
+
+**Task 6 (Path B — real actor-critic gated perception):** go/no-go criteria
+(Tasks 1–5 closed and stable, time/budget remaining, venue question resolved)
+not met. No design or implementation work has begun.
+
+**Task 7 (confusion-gated residual correction, revised design):** gated on
+Task 6. Current spec (superseding an earlier draft) corrects the transition
+function's *output* `h_{t+1}` under an explicit relative-norm magnitude
+budget, compared against a magnitude-matched mean-regression baseline — a
+methodological improvement over the first draft that closes the
+mean-regression-sandbagging loophole. Not started.
+
+---
+
+## Open items carried forward
+
+1. **Unseeded-RNG bug in Phases 2/3/6 and their addenda** — same class of bug
+   Task 1 fixed for Phase 1, confirmed present, not yet fixed or re-verified
+   elsewhere.
+2. **Cartpole's SAE causal test uses a retracted atom** (#139, not the
+   split-sample-confirmed #156) — flagged, not fixed.
+3. **`Reframed_AAMAS2027_Project.md` lives only in `~/Downloads`**, not
+   tracked in this git repo — worth moving in if it's meant to be canonical.
+4. **A fully difficulty-matched FULL-vs-PARTIAL causal comparison** (not just
+   within-condition binning) was not attempted in Task 3 and would fully
+   resolve the KL confound identified there.
