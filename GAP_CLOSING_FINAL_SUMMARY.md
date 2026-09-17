@@ -31,7 +31,7 @@ and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
 | — Cartpole atom re-run (#156) | ✅ Done | **Strongest causal result in the project** — z=+10.3 (E^state) and z=−5.0 (probe), only atom meeting the simultaneous-effect bar. |
 | — Difficulty-matched FULL-vs-PARTIAL | ✅ Done | KL-dependent, non-monotonic: PARTIAL stronger at KL extremes, FULL stronger mid-range. Does not overturn MIXED verdict. |
 | 6 — Path B (real actor-critic) | ⏸ Paused | 13 policies trained; 10/13 show near-constant actor collapse (may be near-optimal bang-bang, not confirmed pathology). Diagnostic proposed, not yet run. |
-| 8 — Error-reduction adaptive reliance | ✅ Done | `C_t` never beats KL/Recon/EMARecon at reducing real imagination error, on any task, at any (non-plateau-distorted) budget. |
+| 8 — Error-reduction adaptive reliance | ✅ Done (corrected) | Original run had a causal-availability bug (same-step signals); fixed. `C_t` beats KL/Recon/EMARecon on all 3 tasks — cleanly on reacher, coarsely (plateau-driven) on cartpole/pendulum. |
 | 7 — Learned correction mechanism (revised) | ⏸ Not started | Correctly gated on Task 6. |
 
 ---
@@ -322,16 +322,36 @@ accumulated imagination error (`E^state`) more than KL/Recon/EMARecon/
 ensemble disagreement? No new training — reuses Phase 1's infrastructure
 entirely.
 
-**Clean negative result, all three tasks:** `C_t` is never the best signal
-at any budget once a real threshold-comparison bug (a `C_t` value plateau on
-15% of cartpole's sites, causing a spurious zero-effect result at low
-budgets) was found and fixed. Reacher: KL wins at every budget — the
-**opposite** ranking from Task 4a's own headline reacher result, which used
-a KL-derived recall label rather than genuine error reduction. Pendulum:
-`C_t` is consistently the *worst* signal. This does not contradict Gate 1
-(a different, stricter, more operational question) but does mean `C_t`'s
-statistical incremental value has not been shown to translate into a better
-budget-allocation policy than the cheap baselines, under the design tested.
+**Two bugs caught before this result was trusted, both changing the
+finding.** (1) **Causal-availability bug**: the first version computed
+KL/Recon/EMARecon (and even `C_t`'s own lag-0 term) from the *same-step*
+observation — exactly the tautology Task 4a's own write-up warns against
+("using same-step KL_t would be tautological, since it is the exact variable
+that defines the label"). This gave the baselines unrestricted access to
+information `C_t` never had in the same way. The tell: the buggy version
+found KL beats `C_t` on reacher, the *opposite* of Task 4a's own
+correctly-lagged finding on that same task — a discrepancy investigated
+rather than accepted, which is what surfaced the bug. Fixed by lagging every
+signal to `t-1` (`C_t` recomputed as `C_{t-1}` from a prior-step-only KL
+series), matching Task 4a/Task R's established fair-comparison protocol
+exactly. (2) **Threshold-tie bug**: a `C_t` value plateau (52% of cartpole
+sites, 85% of pendulum sites tied at `C_t`'s single max — a real saturation
+property of the discounted-history statistic once a trajectory sustains
+enough high-KL steps) caused a strict `>` comparison to exclude every tied
+site; fixed to `>=`, applied uniformly to every signal.
+
+**Corrected result: `C_t` beats every baseline on all three tasks, but by
+two different mechanisms.** On **reacher** (no plateau), this is a clean,
+fine-grained, budget-scaling win — `C_t` beats KL/Recon/EMARecon at every
+budget from 5% to 50%, now agreeing with rather than contradicting Task 4a's
+reacher result. On **cartpole and pendulum**, `C_t`'s plateau acts as a
+coarse but genuinely correct "hard half" detector (plateau-tied sites have
+3.7x higher true error than non-plateau sites on cartpole) — it wins at
+every budget, but because it cannot discriminate *within* its own plateau,
+its `ΔE` is identical across all 5 tested budgets on those two tasks, unlike
+the other signals' properly budget-scaling curves. This nuance — genuine win,
+different mechanism, different reliability by task — is the honest finding,
+not a single uniform "`C_t` wins" headline.
 
 ---
 

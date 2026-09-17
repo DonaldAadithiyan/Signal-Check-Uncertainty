@@ -475,28 +475,50 @@ collection and `imagined_vs_real_obs` entirely — no new training. 6,000
 sites/task, 50/50 calibration/evaluation split (calibration-only threshold
 selection, no evaluation-split leakage), 5 query budgets (5–50%).
 
-**A real bug found and fixed before reporting:** `C_t` has a large exact
-plateau at its maximum value on cartpole (15% of sites tied at the single
-max — a genuine saturation property of the discounted-history statistic, not
-a data artifact). The original `>` threshold comparison excluded every tied
-site when the calibration cutoff landed on that plateau, producing a
-spurious `n_checked=0` / `ΔE=0` result for `C_t` at cartpole's 5%/10%
-budgets. Fixed by changing to `>=` (the cutoff *value* still comes only from
-calibration — a comparison-operator fix, not a threshold-selection change).
+**A causal-availability bug caught by the user, before this result was
+trusted — reverses the entire finding.** The first version computed
+KL/Recon/EMARecon (and even `C_t`'s own lag-0 term) from the **same-step**
+observation, exactly the tautology Task 4a's own write-up warns against
+("using same-step KL_t would be tautological, since it is the exact
+variable that defines the label"). This gave the baselines unrestricted
+access to information `C_t` never had in the same way — not a fair,
+matched-information comparison. The symptom that gave it away: the buggy
+run found KL beats `C_t` on reacher, the *opposite* of Task 4a's own
+correctly-lagged finding on that identical task. The user flagged this
+discrepancy specifically and asked whether the signals had been lagged —
+they hadn't. Fixed by lagging every signal to `t-1`
+(`prior_step_value`, matching `run_task_r_kl_routing.py`'s established
+`prior_step_kl` pattern exactly); `C_t` recomputed as `C_{t-1}` from a
+prior-step-only KL series, not a further lag of the already-computed
+same-step `C_t` array (which would double-lag it).
 
-**Result — clean, consistent negative finding, all three tasks:** `C_t` is
-**never the best signal** at any budget where its selection isn't distorted
-by the cartpole plateau. Reacher: KL wins at every budget (the *opposite*
-ranking from Task 4a's own headline reacher result, which used a
-KL-derived recall label rather than genuine error reduction). Pendulum:
-Recon then EMARecon win; `C_t` is consistently the *worst* of the four
-signals. Cartpole: Recon wins at every budget from 20% up.
+**A second, independent bug found while re-verifying the fix:** `C_t`
+(now `C_{t-1}`) has a large exact plateau at its maximum value — verified
+**52% of cartpole sites and 85% of pendulum sites** tied at the single max
+(reacher: 0.08%, negligible). A strict `>` threshold comparison excluded
+every tied site when the calibration cutoff landed on that plateau. Fixed
+by changing to `>=`, applied identically to every signal (confirmed this
+cannot introduce a new asymmetry — no signal-specific logic, purely whether
+an exact tie at the boundary is included).
+
+**Corrected result — `C_t` now WINS on all three tasks, but by two
+different mechanisms, not a uniform result.** Reacher (no plateau): clean,
+fine-grained, budget-scaling win at every budget 5–50%, now *agreeing with*
+Task 4a's reacher result rather than contradicting it. Cartpole/pendulum
+(severe plateau): `C_t` still wins at every budget, but because it correctly
+identifies a large "hard half" (plateau sites have 3.7x higher true
+imagination error than non-plateau sites on cartpole — verified, not
+assumed) rather than through fine-grained ranking — its `ΔE` and
+`n_checked` are identical across all 5 tested budgets on those two tasks,
+unlike the other signals' properly budget-scaling curves. This is a genuine
+win, but a structurally different and less flexible one than reacher's.
 
 **This does not contradict Gate 1** (C_t's incremental regression
-information is unaffected) — it is a stricter, more operational question
-(does that information translate into a better budget-allocation policy
-under a fixed correction action), and the answer here is no, on all three
-tasks, under the tested design.
+information is unaffected either way) — it answers a stricter, more
+operational question, and the corrected answer is that `C_t`'s incremental
+information does translate into a real budget-allocation advantage, with
+the important caveat that on 2/3 tasks the advantage is coarse (plateau-
+driven) rather than fine-grained.
 
 **Files:** `run_task8_error_reduction.py`,
 `outputs/task8_error_reduction/task8_results.json`,
