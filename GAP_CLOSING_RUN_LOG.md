@@ -502,23 +502,56 @@ cannot introduce a new asymmetry — no signal-specific logic, purely whether
 an exact tie at the boundary is included).
 
 **Corrected result — `C_t` now WINS on all three tasks, but by two
-different mechanisms, not a uniform result.** Reacher (no plateau): clean,
-fine-grained, budget-scaling win at every budget 5–50%, now *agreeing with*
-Task 4a's reacher result rather than contradicting it. Cartpole/pendulum
-(severe plateau): `C_t` still wins at every budget, but because it correctly
-identifies a large "hard half" (plateau sites have 3.7x higher true
-imagination error than non-plateau sites on cartpole — verified, not
-assumed) rather than through fine-grained ranking — its `ΔE` and
-`n_checked` are identical across all 5 tested budgets on those two tasks,
-unlike the other signals' properly budget-scaling curves. This is a genuine
-win, but a structurally different and less flexible one than reacher's.
+different mechanisms, not a uniform result — and on further check, the
+cartpole/pendulum "win" needed a real correction, not just a caveat.**
+Reacher (no plateau): clean, fine-grained, budget-scaling win at every
+budget 5–50%, now *agreeing with* Task 4a's reacher result rather than
+contradicting it.
+
+**Follow-on check (user-requested) found the cartpole/pendulum "win" is not
+what it first looked like.** Two things were checked: (1) how ties within
+`C_t`'s plateau are actually broken, and (2) whether the apparent pendulum
+win is reconcilable with Task 4a's pendulum result. **Tie-breaking:** the
+selection is a single boolean mask (`signal_eval >= thresh`) with no sort or
+secondary key — every tied site is included unconditionally. Verified
+directly that on cartpole, the calibration split's 50th/70th/80th/90th/95th
+percentiles of `C_{t-1}` are ALL exactly equal to its maximum (the 52%
+plateau swallows every one of these cutoffs); pendulum's 85% plateau does
+the same. **This means `C_t`'s "5% budget" and "50% budget" conditions are
+not different queries on these two tasks — the threshold is bit-for-bit
+identical at every nominal budget from 5–50%, so `C_t` silently spends its
+real ~52%/~85% budget regardless of what was nominally requested.** Only
+cartpole's 50% row is a genuinely budget-matched comparison (where `C_t`
+does win, narrowly: +0.3351 vs Recon's +0.3296); every other cartpole row
+and **every pendulum row** compares `C_t`'s inflated real spend against
+baselines' correctly-matched smaller spend — not a fair comparison, and not
+evidence `C_t` "wins" at those nominal budgets.
+
+**Task 4a/Task 8 pendulum reconciliation: checked, and it turns out the two
+results were never comparable in the first place** — not the informative
+recall-vs-error-reduction dissociation the reconciliation task anticipated.
+Two independent problems, both confirmed by reading the actual code/data:
+(1) Task 4a's −0.030 pendulum figure (3/3 seeds) is for **Probe-A**, not
+`C_t` — `run_task_r_kl_routing.py` has a separate `ct_direct` router
+(ridge-regressed from `h_t`) but it was never included in the multiseed
+comparison that produced −0.030; the single-split `ct_direct` number that
+does exist (0.744 vs. `kl_prior`'s 0.808) is directionally consistent but
+was never seed-replicated. (2) Task 4a and Task 8 use entirely different
+site pools for pendulum — Task 4a uses the original 100K-step
+`training_states.npz` split 60/40 by timestep; Task 8 uses freshly-collected
+held-out evaluation episodes via `collect_trajectories`. Given both (1) and
+(2), and pendulum's own budget-matching failure above, **no comparison
+between the two tasks' pendulum results is possible without a fresh,
+matched re-run** — not attempted here, flagged as the concrete next step if
+this specific comparison is ever needed. Pendulum should not be cited as a
+`C_t`-wins finding in Task 8 regardless of the Task 4a question, independent
+of this cross-task issue.
 
 **This does not contradict Gate 1** (C_t's incremental regression
-information is unaffected either way) — it answers a stricter, more
-operational question, and the corrected answer is that `C_t`'s incremental
-information does translate into a real budget-allocation advantage, with
-the important caveat that on 2/3 tasks the advantage is coarse (plateau-
-driven) rather than fine-grained.
+information is unaffected either way). The corrected, precise verdict:
+`C_t` genuinely wins on reacher (matched budget, fine-grained); wins on
+cartpole only at the one matched budget (50%); has no supported win claim on
+pendulum at any tested budget.
 
 **Files:** `run_task8_error_reduction.py`,
 `outputs/task8_error_reduction/task8_results.json`,

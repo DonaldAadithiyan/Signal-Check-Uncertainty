@@ -31,7 +31,7 @@ and process log: `GAP_CLOSING_RUN_LOG.md`. Citable write-ups:
 | — Cartpole atom re-run (#156) | ✅ Done | **Strongest causal result in the project** — z=+10.3 (E^state) and z=−5.0 (probe), only atom meeting the simultaneous-effect bar. |
 | — Difficulty-matched FULL-vs-PARTIAL | ✅ Done | KL-dependent, non-monotonic: PARTIAL stronger at KL extremes, FULL stronger mid-range. Does not overturn MIXED verdict. |
 | 6 — Path B (real actor-critic) | ⏸ Paused | 13 policies trained; 10/13 show near-constant actor collapse (may be near-optimal bang-bang, not confirmed pathology). Diagnostic proposed, not yet run. |
-| 8 — Error-reduction adaptive reliance | ✅ Done (corrected) | Original run had a causal-availability bug (same-step signals); fixed. `C_t` beats KL/Recon/EMARecon on all 3 tasks — cleanly on reacher, coarsely (plateau-driven) on cartpole/pendulum. |
+| 8 — Error-reduction adaptive reliance | ✅ Done (corrected twice) | Causal-availability bug fixed, then a budget-matching issue found: `C_t` genuinely wins on reacher (matched); wins on cartpole only at 50% (the one matched budget); **no supported win on pendulum** at any tested budget — its plateau means every pendulum row compares mismatched budgets. |
 | 7 — Learned correction mechanism (revised) | ⏸ Not started | Correctly gated on Task 6. |
 
 ---
@@ -340,18 +340,41 @@ property of the discounted-history statistic once a trajectory sustains
 enough high-KL steps) caused a strict `>` comparison to exclude every tied
 site; fixed to `>=`, applied uniformly to every signal.
 
-**Corrected result: `C_t` beats every baseline on all three tasks, but by
-two different mechanisms.** On **reacher** (no plateau), this is a clean,
-fine-grained, budget-scaling win — `C_t` beats KL/Recon/EMARecon at every
-budget from 5% to 50%, now agreeing with rather than contradicting Task 4a's
-reacher result. On **cartpole and pendulum**, `C_t`'s plateau acts as a
-coarse but genuinely correct "hard half" detector (plateau-tied sites have
-3.7x higher true error than non-plateau sites on cartpole) — it wins at
-every budget, but because it cannot discriminate *within* its own plateau,
-its `ΔE` is identical across all 5 tested budgets on those two tasks, unlike
-the other signals' properly budget-scaling curves. This nuance — genuine win,
-different mechanism, different reliability by task — is the honest finding,
-not a single uniform "`C_t` wins" headline.
+**A third check (user-requested) found the cartpole/pendulum "win" needed a
+real correction, not just a mechanism caveat.** Two things were checked:
+how ties within the plateau are actually broken, and whether the pendulum
+result reconciles with Task 4a's pendulum finding.
+
+**Tie-breaking: confirmed there is none.** Selection is a single boolean
+mask with no sort or secondary key — every tied site is included
+unconditionally. Verified directly: on cartpole, the calibration split's
+50th/70th/80th/90th/95th percentiles of `C_{t-1}` are **all exactly equal**
+to its maximum (the 52% plateau swallows every one of these cutoffs
+simultaneously); pendulum's 85% plateau does the same to all five. **This
+means `C_t`'s "5% budget" and "50% budget" are not different queries on
+these two tasks — the threshold is bit-for-bit identical at every nominal
+budget from 5–50%, so `C_t` silently spends its real ~52%/~85% budget
+regardless of what was nominally requested.** Only cartpole's 50% row is a
+genuinely budget-matched comparison (`C_t` wins there, narrowly: +0.3351 vs
+Recon's +0.3296); every other row on both tasks compares `C_t`'s inflated
+real spend against baselines' correctly-matched smaller spend.
+
+**Task 4a/Task 8 pendulum reconciliation: the two results were never
+comparable, not a genuine dissociation.** Checked directly, two independent
+problems: (1) Task 4a's −0.030 pendulum figure (3/3 seeds) is for **Probe-A**,
+not `C_t` — a separate `ct_direct` router exists in Task 4a's code but was
+never included in that multiseed comparison. (2) Task 4a and Task 8 use
+entirely different site pools for pendulum (the original 100K-step training
+log vs. freshly-collected held-out evaluation episodes). No reconciliation
+between the two tasks' pendulum results is possible without a fresh, matched
+re-run — not attempted, flagged as the concrete next step if needed.
+
+**Corrected, precise verdict:** `C_t` genuinely wins on **reacher** (no
+plateau, clean fine-grained budget-scaling win, corroborating Task 4a).
+On **cartpole**, wins only at the one matched budget (50%) — every smaller
+nominal budget is not a fair comparison due to the plateau. On **pendulum**,
+**no tested budget is matched and no win claim is supported** — this should
+not be cited as a `C_t`-wins result.
 
 ---
 
@@ -391,3 +414,15 @@ not a single uniform "`C_t` wins" headline.
    simplification** — a more realistic partial-correction model was not
    tested and might change which signal wins; noted in its own deliverable's
    caveats.
+10. **Task 8's `C_t` plateau means cartpole/pendulum cannot be tested at any
+    real budget below ~52%/~85%** — if a genuinely small-budget comparison
+    on these two tasks is ever needed, it would require either a signal
+    transform that breaks the plateau (e.g. ranking by a secondary tiebreak
+    within tied sites) or accepting that `C_t` structurally cannot operate
+    at small budgets on these tasks. Not resolved here.
+11. **Task 4a's pendulum result and Task 8's pendulum result cannot be
+    reconciled as currently constructed** — different objects (Probe-A vs.
+    `C_t`-direct, and `C_t`-direct was never seed-replicated in Task 4a) on
+    different site pools (training-time log vs. held-out evaluation
+    episodes). A fresh, matched re-run of one on the other's protocol would
+    be needed to actually compare them; not attempted.
