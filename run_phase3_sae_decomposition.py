@@ -159,7 +159,21 @@ def decompose_direction(sae, v, task_h_mean_subtracted_scale=1.0):
 
 def collect_eval_trajectories_and_targets(task, spec, cfg, n_traj):
     """Reuses Phase 1 machinery: real trajectories, imagined-vs-real E^state,
-    plus KL/recon/C_t/EMA at each site -- the per-site feature-behavior dataset."""
+    plus KL/recon/C_t/EMA at each site -- the per-site feature-behavior dataset.
+
+    RNG-bug audit fix (gap-closing spec, Item 2, §9.3/§9.4's atom-selection
+    dataset): the RSSM's stochastic-latent sampling draws from PyTorch's
+    global unseeded RNG in both collect_trajectories and imagined_vs_real_obs
+    (the same bug class fixed in run_phase1_external_validation.run_task,
+    run_phase3_causal_features.run_task_causal, run_phase6_causal_steering,
+    and run_phase2_rigor_controls). Note: this function is the ONLY part of
+    Phase 3's own atom-DISCOVERY pipeline affected -- load_pooled_h() (the
+    SAE's own training data) reads pre-saved training_states.npz files
+    directly from disk with no RSSM sampling at all, so the SAE dictionary
+    training itself was already fully deterministic before this fix; only
+    the §9.3/§9.4 feature-behavior correlation dataset (which atoms correlate
+    with E^state) needed it."""
+    torch.manual_seed(SEED)
     model, obs_dim, act_dim = load_model(spec['checkpoint'])
     tr = dict(np.load(spec['training_states']))
     ema_alpha = fit_ema_alpha(tr['recon'][:50000], tr['kl'][:50000])
