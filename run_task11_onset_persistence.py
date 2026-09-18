@@ -178,6 +178,32 @@ def check_balance(ct_matched, kl, recon):
     return dict(corr_with_kl=r_kl, corr_with_recon=r_recon)
 
 
+BALANCE_MAX_ABS_CORR = 0.10   # every clean run so far (seed_0 at N=60 and N=100)
+                                # has landed well under this (|r| < 0.06); fixed
+                                # as a hard gate, not tuned after seeing seed_1's
+                                # failure.
+
+
+def assert_balance_ok(balance, label):
+    """Hard-stop, not a log line: a failed balance check means C_t_matched is
+    NOT decorrelated from current error on this data, so any downstream
+    incremental-R^2/pseudo-R^2 number computed from it is testing the wrong
+    thing (residual KL/Recon leakage, not C_t's independent contribution) and
+    must not be silently reported as if it were a clean result. Found during
+    the Task 11 closing spec's multi-seed check: an earlier version of this
+    pipeline computed and printed a "SHIP" verdict for outputs/multiseed/
+    seed_1 despite its own balance check failing (|r| up to 0.26) -- exactly
+    the failure mode this assertion exists to make impossible to miss."""
+    worst = max(abs(balance['corr_with_kl']), abs(balance['corr_with_recon']))
+    if worst > BALANCE_MAX_ABS_CORR:
+        raise RuntimeError(
+            f"[{label}] BALANCE CHECK FAILED: max|corr(C_t_matched, KL/Recon)|="
+            f"{worst:.4f} > {BALANCE_MAX_ABS_CORR} threshold. The matched-"
+            f"current-error comparison is NOT valid on this data -- refusing "
+            f"to compute or report a downstream incremental-R^2 result. "
+            f"balance={balance}")
+
+
 def incremental_r2_persistence(target, kl, recon, ema, ct_matched, n_boot=N_BOOT, seed=0):
     def r2_diff(idx):
         t, k, rc, e, c = target[idx], kl[idx], recon[idx], ema[idx], ct_matched[idx]
@@ -265,6 +291,7 @@ def run_task(task, cfg):
     balance = check_balance(ct_matched_eval, kl_eval, recon_eval)
     print(f"  balance check (should be ~0): corr(C_t_matched, KL)={balance['corr_with_kl']:+.4f}  "
           f"corr(C_t_matched, Recon)={balance['corr_with_recon']:+.4f}")
+    assert_balance_ok(balance, task)
 
     P_tH, onset_within_H, onset_eligible = targets_from_rows(eval_rows, tau)
 

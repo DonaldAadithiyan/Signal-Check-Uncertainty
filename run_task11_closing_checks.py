@@ -26,7 +26,7 @@ import torch
 from src.config import XS_CONFIG
 from run_task11_onset_persistence import (
     TASKS, CALIB_SEED, EVAL_SEED, build_dataset, compute_tau,
-    fit_ct_residual_model, apply_ct_residual, check_balance,
+    fit_ct_residual_model, apply_ct_residual, check_balance, assert_balance_ok,
     targets_from_rows, incremental_r2_persistence,
 )
 
@@ -81,6 +81,7 @@ def item3_multiseed_spotcheck():
     balance = check_balance(ct_matched_eval, kl_eval, recon_eval)
     print(f"  balance check (should be ~0): corr(C_t_matched, KL)={balance['corr_with_kl']:+.4f}  "
           f"corr(C_t_matched, Recon)={balance['corr_with_recon']:+.4f}")
+    assert_balance_ok(balance, 'multiseed/seed_1')
 
     P_tH, _, _ = targets_from_rows(eval_rows, tau)
     incr_A = incremental_r2_persistence(P_tH, kl_eval, recon_eval, ema_eval, ct_matched_eval, seed=CALIB_SEED)
