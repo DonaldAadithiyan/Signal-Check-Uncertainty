@@ -138,6 +138,11 @@ def build_dataset(task, cfg, seed, n_traj, spec_override=None):
             ema_recon=float(trj['ema_recon'][t]), ct=float(trj['ct'][t]),
             kl_is_low=bool(trj['kl'][t] <= kl_median),
             recon_is_low=bool(trj['recon'][t] <= recon_median),
+            h=trj['h'][t].copy(),   # raw deterministic state, needed for the
+                                     # Task 11 extension's random-direction
+                                     # projections (r_i^T h_t); harmless
+                                     # addition for every existing caller,
+                                     # which never reads this key.
         ))
     return rows, model
 
