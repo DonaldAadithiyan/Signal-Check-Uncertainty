@@ -33,6 +33,7 @@ exists in this XS pipeline" fact) -- return is not measured.
 import os
 import json
 import time
+import random
 import argparse
 import numpy as np
 import torch
@@ -92,6 +93,20 @@ def train_condition(task, spec, cfg, condition, seed, out_dir):
     loss history, v_t history (or random-dir history), final model, states."""
     torch.manual_seed(seed)
     np.random.seed(seed)
+    # EpisodeReplayBuffer.sample() (src/training/replay_buffer.py) draws from
+    # Python's global `random` module, not numpy/torch -- np.random.seed and
+    # torch.manual_seed alone do NOT make training-loop reproducible once
+    # gradient steps start consuming buffer.sample() calls (discovered via
+    # this task's own pilot reproducibility check, §3.6.3: h/kl/recon first
+    # diverged at exactly cfg['warmup_steps']=1000, the first gradient step).
+    # This exact gap exists unfixed elsewhere in the project too (src/
+    # training/trainer.py, run_multiseed_env.py never seed `random` either),
+    # but those scripts never claimed training-loop byte-reproducibility --
+    # only inference/analysis-time reproducibility on already-trained models
+    # was audited and fixed (see rng_bug_audit.md). Task B is the first place
+    # this project requires literal training-run reproducibility, so it is
+    # fixed here rather than carried forward as an unexamined gap.
+    random.seed(seed)
 
     env = make_env(spec, seed=seed)
     model = WorldModel(env.obs_dim, env.act_dim, cfg)
@@ -205,21 +220,24 @@ def train_condition(task, spec, cfg, condition, seed, out_dir):
     with open(os.path.join(out_dir, 'v_history.json'), 'w') as f:
         json.dump(v_history, f)
 
-    # constraint-effectiveness diagnostic on the final v/random-dir (pilot check §3.6.1):
-    # |v^T h_tilde| on steps strictly AFTER the last refit (so every h in the
-    # window was actually produced under that exact v -- using a fixed-size
-    # tail window instead would dilute the residual with steps governed by an
-    # earlier v, or with pre-constraint steps, understating effectiveness at
-    # small scales).
-    final_v = v_history[-1]['v'] if v_history else None
+    # constraint-effectiveness diagnostic on the LAST v/random-dir that actually
+    # governed at least one post-refit step (pilot check §3.6.1): |v^T h_tilde|
+    # on steps strictly AFTER that refit. A fixed-size tail window would dilute
+    # the residual with steps governed by an earlier v or pre-constraint steps,
+    # understating effectiveness; but if the very last refit lands exactly on
+    # the final training step (e.g. max_steps is an exact multiple of
+    # REFIT_EVERY), it never governs any logged step, so we fall back to the
+    # most recent refit that does have data after it.
     constraint_resid = None
-    if final_v is not None:
-        last_refit_step = v_history[-1]['step']
-        h_after_final = log_h[last_refit_step:]
-        if len(h_after_final) > 0:
-            v_t = torch.tensor(final_v, dtype=torch.float32)
-            h_tail = torch.tensor(np.array(h_after_final, dtype=np.float32))
+    constraint_resid_v_step = None
+    for vh in reversed(v_history):
+        h_after = log_h[vh['step']:]
+        if len(h_after) > 0:
+            v_t = torch.tensor(vh['v'], dtype=torch.float32)
+            h_tail = torch.tensor(np.array(h_after, dtype=np.float32))
             constraint_resid = float((h_tail @ v_t).abs().mean().item())
+            constraint_resid_v_step = vh['step']
+            break
 
     print(f"[taskB {task} {condition} seed{seed}] done in {(time.time()-t0)/60:.1f}m | "
           f"{traj_id} episodes | {len(loss_history)} grad steps | "
@@ -229,6 +247,7 @@ def train_condition(task, spec, cfg, condition, seed, out_dir):
                 n_grad_steps=len(loss_history), n_episodes=traj_id,
                 final_loss=loss_history[-1]['loss'] if loss_history else None,
                 constraint_resid_final=constraint_resid,
+                constraint_resid_v_step=constraint_resid_v_step,
                 n_refits=len(v_history))
 
 
