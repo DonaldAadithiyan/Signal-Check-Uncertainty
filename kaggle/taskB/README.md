@@ -2,11 +2,33 @@
 
 ## Why this runs on Kaggle
 
-Measured locally (this project's CPU-only MacBook Air): ~3.4 min per 6,000
-env-step condition, i.e. ~55-57 CPU-min per full 100,000-step run. Task B
-needs 27 such runs (3 tasks × 3 conditions × 3 seeds) = ~25 hours serial
-locally. Kaggle's free CPU sessions (and parallel notebooks) make this
-tractable without tying up the local machine for a day-plus.
+Measured locally (this project's CPU-only MacBook Air), from an actual
+100,000-step pilot run: **~2.25h per condition once gradient steps are
+running** (an early smoke-test-based estimate of ~55min/run undershot this —
+smoke tests only ran a few thousand steps, dominated by cheap warmup-only
+inference, not sustained training). Task B needs 27 such runs (3 tasks × 3
+conditions × 3 seeds) = **~61 hours serial locally**, or ~20h even under the
+declared 9-run cartpole-only fallback. Kaggle sessions (and running multiple
+notebooks in parallel) make this tractable without tying up the local
+machine for days.
+
+## Reproducibility bug found and fixed during the local pilot
+
+The pilot's own reproducibility check (§3.6.3 — rerun the first 15,000 steps
+of condition B twice, confirm byte-identical) **failed on the first attempt**:
+`h`/`kl`/`recon` diverged starting at exactly step 1000 (`cfg['warmup_steps']`,
+the first gradient step). Root cause: `EpisodeReplayBuffer.sample()`
+(`src/training/replay_buffer.py`) draws from Python's global `random` module
+(`random.choice`, `random.randint`), which `torch.manual_seed`/`np.random.seed`
+alone do not control. This exact gap exists unfixed elsewhere in the project
+(`src/training/trainer.py`, `run_multiseed_env.py` never seed `random`
+either), but no prior script claimed *training-loop* byte-reproducibility —
+only inference-time reproducibility on already-frozen models was audited
+(`outputs/deliverables/rng_bug_audit.md`). Task B is the first place this
+project needs literal training-run reproducibility, so `random.seed(seed)`
+was added at the top of `train_condition` (this package's `taskB_program.py`
+already has the fix). Rerunning the check after the fix: `h`/`kl`/`recon`
+byte-identical across two independent reruns — **PASS**.
 
 ## Upload steps
 
