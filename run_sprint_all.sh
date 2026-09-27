@@ -20,3 +20,4 @@ $PY run_sprint_p1p2.py                         # P1 on every multiseed model
 ${SPRINT_SEEDS_P3:-true} && $PY run_sprint_p3.py --models all   # P3 multiseed (null50)
 $PY paper/figures/src/make_sprint_figs.py
 $PY build_sprint_report.py
+$PY paper/fill_paper.py || echo "some \\res keys unresolved (see list above)"

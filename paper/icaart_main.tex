@@ -18,13 +18,18 @@
 \usepackage{SCITEPRESS} % other packages must be loaded BEFORE SCITEPRESS.sty
 
 % ---------------------------------------------------------------------------
-% Draft helper. Set \verifymodefalse before submission: every \verify{...}
-% then disappears, so resolve all of them first (search the source for \verify).
-% Remaining items are code/data lookups only.
+% Numbers. Every number that comes from the corrected pipeline is written as
+%   \res{<key in outputs/sprint/results.json>}{<python format>}
+% `python paper/fill_paper.py` replaces them all and writes icaart_main_filled.tex
+% (compile THAT file). Anything left unfilled renders as a red key.
+% \confirm{...} marks a sentence whose wording depends on the sign/CI of a filled
+% number; confirm it against outputs/sprint/RESULTS.md, then delete the marker.
+% Set \draftmodefalse before submission; both macros then fail loudly/vanish.
 % ---------------------------------------------------------------------------
-\newif\ifverifymode
-\verifymodetrue
-\newcommand{\verify}[1]{\ifverifymode\textcolor{red}{\,[VERIFY: #1]}\fi}
+\newif\ifdraftmode
+\draftmodetrue
+\newcommand{\res}[2]{\ifdraftmode\textcolor{red}{\texttt{\detokenize{#1}}}\else\errmessage{unfilled result #1}\fi}
+\newcommand{\confirm}[1]{\ifdraftmode\textcolor{orange}{\,[CHECK: #1]}\fi}
 
 % ---------------------------------------------------------------------------
 % Full-width figures. In two-column SCITEPRESS layout a figure that spans both
@@ -49,6 +54,8 @@
 \newcommand{\KL}{\mathrm{KL}}
 \newcommand{\Rec}{\mathrm{Rec}}
 \newcommand{\EMA}{\mathrm{EMARec}}
+\newcommand{\EMAKL}{\mathrm{EMAKL}}
+\newcommand{\Cp}{C_t^{\mathrm{past}}}
 
 \renewcommand{\dbltopfraction}{0.85}
 \renewcommand{\dblfloatpagefraction}{0.8}
@@ -66,9 +73,9 @@
 \email{email withheld for double-blind review}
 }
 
-\keywords{World Models, Recurrent State-Space Models, Model-Based Reasoning, Mechanistic Interpretability, Sparse Autoencoders, Causal Intervention.}
+\keywords{World Models, Recurrent State-Space Models, Model-Based Reasoning, Mechanistic Interpretability, Causal Intervention.}
 
-\abstract{Learned recurrent world models maintain compact states that summarise what is needed for future prediction. We ask whether these states also encode the evolving difficulty of their own prediction process, without any supervision for such a variable. In a Mini-DreamerV3 world model trained on three dm-control tasks, we find that the deterministic recurrent state contains a low-variance direction that tracks a discounted history of high-surprise steps. This representation predicts future divergence between imagined and real trajectories beyond KL divergence, reconstruction error and smoothed reconstruction error, with bootstrap-significant gains on all three tasks, and it becomes internally stronger when the model must filter unobserved state. Sparse-autoencoder analysis shows it is distributed across many dictionary atoms, yet contains identifiable sparse components with distinct roles. Causal intervention then separates two properties that are easily conflated: steering the dense direction decisively changes the model's internal difficulty readout on every seed while leaving the external quality of its imagined predictions unchanged, whereas ablating specific sparse components changes external predictive quality. Recurrent world models thus develop internal monitors of predictive difficulty whose causal structure is richer than a single uncertainty scalar.}
+\abstract{Learned recurrent world models maintain compact states that summarise what is needed for future prediction. We ask whether these states also encode the evolving difficulty of their own prediction process, without any supervision for such a variable. In a Mini-DreamerV3 world model trained on three dm-control tasks, we find that the deterministic recurrent state carries a readout that tracks a discounted history of high-surprise steps, including when the current step is excluded from that history. This history predicts future divergence between imagined and real trajectories beyond KL divergence, reconstruction error, and exponentially smoothed versions of both, and the result is robust to how the history is defined. Causal intervention then separates two properties that are easily conflated: steering the hidden state along the readout direction decisively changes the model's internal difficulty readout, including ten recurrent steps later, while leaving the external quality of its imagined predictions at the level of random directions. Recurrent world models thus develop internal monitors of predictive difficulty that are informative about, but causally separable from, the quality of their own predictions.}
 
 \onecolumn \maketitle \normalsize \setcounter{footnote}{0} \vfill
 
@@ -78,20 +85,19 @@
 
 Learned recurrent world models maintain compact internal states that must summarise the information relevant for future prediction \cite{ha2018worldmodels,hafner2019planet,hafner2020dreamer}. These states let an agent predict and imagine the consequences of its actions without acting in the environment. An open question is whether the same states also encode information about the evolving \emph{difficulty} of their own prediction process.
 
-The question matters because the obvious difficulty signals are instantaneous. A world model's KL divergence between posterior and prior, or its reconstruction error, reports how surprising the current step is. A recurrent state, by contrast, is a running summary of the past, and could in principle carry a \emph{history} of predictive difficulty: not only whether the present is surprising, but whether predictions have recently and repeatedly been hard. Whether such a quantity emerges, what it means, and how it is implemented are basic questions about what world models represent.
+The question matters because the obvious difficulty signals are instantaneous. A world model's KL divergence between posterior and prior, or its reconstruction error, reports how surprising the current step is. A recurrent state, by contrast, is a running summary of the past, and could in principle carry a \emph{history} of predictive difficulty: not only whether the present is surprising, but whether predictions have recently and repeatedly been hard. Whether such a quantity emerges, what it means, and how it is used are basic questions about what world models represent.
 
 We therefore ask: \textbf{does a recurrent world model spontaneously encode accumulated predictive difficulty in its hidden state, without explicit supervision for such a variable?}
 
-Answering this requires more than fitting a probe. A readout that predicts current KL is partly circular, since KL is computed from the same state. A readout that only tracks smoothed recent error would add nothing a running average could not provide. And a readout that can be moved by intervention is not thereby shown to control the capability it appears to report \cite{elazar2021amnesic,joshi2026causal}. We address each of these points on a Mini-DreamerV3 recurrent state-space model (RSSM) \cite{hafner2025dreamerv3} trained on three dm-control tasks \cite{tassa2018dmcontrol}. Our contributions are:
+Answering this requires more than fitting a probe. A readout that predicts current KL is partly circular, since KL is computed from the same state, and a history statistic that includes the current step partly measures the probe's own label. A readout that only tracks smoothed recent error would add nothing a running average could not provide. And a readout that can be moved by intervention is not thereby shown to control the capability it appears to report \cite{elazar2021amnesic,joshi2026causal}. We address each of these points on a Mini-DreamerV3 recurrent state-space model (RSSM) \cite{hafner2025dreamerv3} trained on three dm-control tasks \cite{tassa2018dmcontrol}. Our contributions are:
 
 \begin{enumerate}
-\item \textbf{Emergent representation.} The hidden state contains a low-variance direction, nearly orthogonal to its dominant principal components, that tracks a discounted history of high-KL steps (Section~\ref{sec:emergence}).
-\item \textbf{External meaning.} This representation predicts future divergence between imagined and real trajectories, a quantity defined entirely outside its discovery signal, beyond KL, reconstruction error and smoothed-reconstruction baselines (Section~\ref{sec:external}).
-\item \textbf{Mechanistic structure.} The representation is globally distributed, yet contains identifiable sparse components with distinct relationships to the internal readout and to external predictive quality (Section~\ref{sec:mechanism}).
-\item \textbf{Causal dissociation.} Intervention shows that the direction controlling the model's internal predictive-difficulty readout is not the mechanism governing external predictive quality (Section~\ref{sec:causal}).
+\item \textbf{Emergent representation.} A linear readout of the hidden state tracks a discounted history of high-KL steps, including a history that excludes the current step, beyond what current KL explains (Section~\ref{sec:emergence}).
+\item \textbf{External meaning.} This history predicts future divergence between imagined and real trajectories, a quantity defined entirely outside its discovery signal, beyond KL, reconstruction error and their exponential smoothings, across definitions of the history (Section~\ref{sec:external}).
+\item \textbf{Causal dissociation.} Steering the readout direction moves the model's internal difficulty readout far beyond random directions, immediately and ten recurrent steps later, without changing the external quality of its imagined predictions (Section~\ref{sec:causal}).
 \end{enumerate}
 
-Section~\ref{sec:interpretation} interprets these findings, including a filtering-theoretic account of when accumulated predictive difficulty should carry information, and a controlled test showing that the internal representation strengthens under partial observability.
+Section~\ref{sec:interpretation} interprets these findings, including a filtering-theoretic account of when accumulated predictive difficulty should carry information.
 
 % ===========================================================================
 \section{\uppercase{Related Work}}
@@ -107,23 +113,23 @@ Recurrent world models carry a deterministic belief state alongside a stochastic
 
 \subsection{Mechanistic Interpretability}
 
-Linear probes \cite{alain2016probes} establish that information can be read from a representation, not that the model uses it \cite{hewitt2019control,belinkov2022probing,elazar2021amnesic}. Interventional methods such as activation patching, editing and steering \cite{meng2022rome,geiger2021abstractions,turner2023actadd,zou2023repe} provide stronger evidence, and interpretability claims should state which rung of this causal ladder they reach \cite{joshi2026causal}. Sparse autoencoders decompose activations into overcomplete dictionaries \cite{makhzani2013ksparse,cunningham2023sae,bricken2023monosemanticity,gao2024scaling}, although the resulting units are not canonical \cite{leask2025canonical}. Here the SAE is a tool for interrogating an already-discovered representation, not the topic of the paper.
+Linear probes \cite{alain2016probes} establish that information can be read from a representation, not that the model uses it \cite{hewitt2019control,belinkov2022probing,elazar2021amnesic}. Interventional methods such as activation patching, editing and steering \cite{meng2022rome,geiger2021abstractions,turner2023actadd,zou2023repe} provide stronger evidence, and interpretability claims should state which rung of this causal ladder they reach \cite{joshi2026causal}. We use steering along a probe direction, scored against random-direction nulls, and measure both an internal and an external outcome of the same intervention.
 
 % ===========================================================================
 \section{\uppercase{Experimental Setup}}
 \label{sec:setup}
 
 % Figure placed here so it appears at the top of the next page.
-\widefig{fig1_emergence.pdf}{0.72}{Emergence of predictive difficulty in the recurrent state. (a) Probe readout vs.\ the accumulated construct $C_t$ on cartpole ($\gamma{=}0.95$, $R^2{=}0.80$). (b) Variance of the readout explained by current $\KL_t$ (hatched) vs.\ $C_t$ (solid) on all three tasks; markers show individual seeds. (c) Angle between $v$ and the top-50 PCA subspace of $h_t$; the direction is nearly orthogonal to the dominant variance on every task. (d) How well $h_t$ predicts real-order $C_t$ (colour) vs.\ time-scrambled $C_t$ (grey), with $z$ against the scrambled distribution above each task.}{fig:emergence}
+\widefig{fig1_emergence.pdf}{0.72}{Emergence of predictive difficulty in the recurrent state (evaluation episodes). (a) Probe readout vs.\ $C_t$ on cartpole (seeded sample of evaluation sites). (b) Variance of the readout explained by current $\KL_t$ (hatched), $C_t$ (filled) and $\Cp$, which excludes the current step (open); bars are primary models, dots are replicates. (c) Share of $v$ lying in the top-50 principal subspace of $h_t$ (filled: primary model; open: replicates) against 1{,}000 random unit vectors (grey line: mean; band from the 5th percentile). (d) How well $h_t$ predicts real-order $C_t$ (colour) vs.\ $C_t$ recomputed with past high-KL flags permuted within each episode and the current flag held fixed (grey, mean $\pm$ sd of 20), with $z$ against the scrambled distribution.}{fig:emergence}
 
 \subsection{World Model}
 
-We use Mini-DreamerV3 in its XS configuration \cite{hafner2025dreamerv3}: a 256-dimensional GRU \cite{cho2014gru} deterministic state $h_t$, a $32{\times}32$ categorical stochastic latent $z_t$, and about 12M parameters. The deterministic state is updated as
+We use Mini-DreamerV3 in its XS configuration \cite{hafner2025dreamerv3}: a 256-dimensional GRU \cite{cho2014gru} deterministic state $h_t$ and a $32{\times}32$ categorical stochastic latent $z_t$. The deterministic state is updated as
 \begin{equation}
-h_t = \mathrm{GRU}\big([z_{t-1}, a_{t-1}],\, h_{t-1}\big).
+h_t = \mathrm{GRU}\big([z_{t-1}, a_{t-1}],\, h_{t-1}\big),
 \label{eq:gru}
 \end{equation}
-The model's per-step KL divergence $\KL_t$ between posterior and prior over $z_t$, and its observation reconstruction error $\Rec_t$, are its instantaneous surprise signals. For each task we train a primary model and additional independently initialised replicates (five models in total for cartpole, four each for reacher and pendulum), each for 100{,}000 environment steps on data collected by a uniform-random policy. All analyses query frozen models; which models enter each analysis is stated with its results.
+and every analysis logs states with exactly this pairing: the observation $o_t$ enters the posterior together with the action $a_{t-1}$ that produced it, as in training. The model's per-step KL divergence $\KL_t$ between posterior and prior over $z_t$, and its observation reconstruction error $\Rec_t$, are its instantaneous surprise signals. For each task we train a primary model and additional independently initialised replicates (five models in total for cartpole, four each for reacher and pendulum), each for 100{,}000 environment steps on data collected by a uniform-random policy. All analyses query frozen models; which models enter each analysis is stated with its results.
 
 \begin{table}[H]
 \caption{Environments (dm-control).}\label{tab:envs}
@@ -142,27 +148,33 @@ pendulum-swingup & 3 & 1 & distinct nonlinear \\
 \end{tabular}
 \end{table}
 
-\subsection{Predictive-Difficulty Representation}
+\subsection{Data Splits}
+
+All analyses run on fresh random-policy episodes of 500 steps, split by episode with fixed seeds: 100 \emph{probe-fit} episodes (probe, principal components), 50 \emph{calibration} episodes (every threshold, discount and smoothing constant), and 100 \emph{evaluation} episodes, on which every reported number is computed. The first 12 steps of each episode are excluded as burn-in. No split is made at the level of individual steps.
+
+\subsection{Predictive-Difficulty History}
 
 We summarise the recent history of predictive difficulty as a discounted count of high-KL steps,
 \begin{equation}
-C_t = \sum_{i \ge 0} \gamma^{i}\, \mathbb{1}\!\left[\KL_{t-i} > \mathrm{median}(\KL)\right],
+C_t = \sum_{i \ge 0} \gamma^{i}\, \mathbb{1}\!\left[\KL_{t-i} > \tau\right],
+\qquad
+\Cp = \sum_{i \ge 1} \gamma^{i}\, \mathbb{1}\!\left[\KL_{t-i} > \tau\right],
 \label{eq:ct}
 \end{equation}
-with $\gamma$ chosen per task as the value whose $C_t$ is best fit by $h_t$ (cartpole $0.95$, reacher $0.70$, pendulum $0.90$; effective memories of roughly 13, 3 and 10 steps). Its $i{=}0$ term is the label of the probe introduced in Section~\ref{sec:emergence}.
+where $\tau$ is the median of $\KL$ on the calibration episodes and the sums reset at episode boundaries. The $i{=}0$ term of $C_t$ is the label of the probe introduced in Section~\ref{sec:emergence}; $\Cp$ excludes it and is our primary statistic wherever the current step would make a comparison circular. For each statistic, $\gamma$ is chosen from $\{0.5, 0.7, 0.8, 0.9, 0.95\}$ as the value whose statistic best fits the probe readout on the calibration episodes ($C_t$: cartpole \res{p1.cartpole.primary.variants.C.gamma}{.2f}, reacher \res{p1.reacher.primary.variants.C.gamma}{.2f}, pendulum \res{p1.pendulum.primary.variants.C.gamma}{.2f}). Section~\ref{sec:robust} reports every alternative definition we considered.
 
 \subsection{External Target}
 
-The external target is defined without reference to KL or to any probe. From the state at time $t$ the model imagines $K$ steps open-loop; each imagined state is decoded and compared with the real continuation:
+The external target is defined without reference to KL or to any probe. From the state at time $t$ the model imagines $K$ steps open-loop with the prior, feeding the real actions $a_t, \dots, a_{t+K-1}$ of the continuation; each imagined state is decoded and compared with the real observation:
 \begin{equation}
-\Est_{t,K} = \frac{1}{K}\sum_{k=1}^{K} \big\| \hat{o}_{t+k} - o_{t+k} \big\|,
+\Est_{t,K} = \frac{1}{K}\sum_{k=1}^{K} \big\| \hat{o}_{t+k} - o_{t+k} \big\|_2,
 \label{eq:estate}
 \end{equation}
-with $K \in \{1,5,10,20\}$.\verify{norm type; imagined rollout uses the same action sequence as the real continuation} $\Est$ is measured on 100 held-out real trajectories per task (6{,}000 sites per task), never on training data.
+with $K \in \{1,5,10,20\}$. $\Est$ is computed at every site of the 100 evaluation episodes (\res{p2.cartpole.n_sites}{d}, \res{p2.reacher.n_sites}{d} and \res{p2.pendulum.n_sites}{d} sites).
 
 \subsection{Statistical Protocol}
 
-Every causal effect, whether of steering the dense direction or of ablating a sparse component, is scored as a $z$ value against the same manipulation applied along 50 random directions in $h$-space of matched norm. Candidate SAE atoms are selected and evaluated on disjoint halves of the held-out sites. Single-model results carry 95\% bootstrap intervals from 1{,}000 resamples with trajectories as the resampling unit, and multi-seed results report mean $\pm$ standard deviation over independently trained world models. Every stochastic step in the external-validation, rigor-control, sparse-autoencoder and intervention pipelines is seeded, and these pipelines reproduce their outputs exactly on re-execution. Following \cite{joshi2026causal}, we use ``encodes'' and ``controls'' only for interventional results.
+Every causal effect is scored as a $z$ value against the same manipulation applied along 50 random unit directions in $h$-space with the same step size; on each task's primary model we repeat this against 500 random directions and against 50 random directions confined to the orthogonal complement of the top-50 principal subspace. All intervals are 95\% bootstrap intervals from 1{,}000 resamples with episodes as the resampling unit; multi-model results report mean $\pm$ standard deviation over independently trained world models. Every stochastic step (environment, actions, and every latent sample) draws from an explicitly seeded generator, so each result is reproduced exactly on re-execution. Following \cite{joshi2026causal}, we use ``encodes'' and ``controls'' only for interventional results.
 
 % ===========================================================================
 \section{\uppercase{Emergence of Predictive Difficulty in the Recurrent State}}
@@ -170,186 +182,146 @@ Every causal effect, whether of steering the dense direction or of ablating a sp
 
 \subsection{Hidden-State Probe}
 
-A logistic-regression probe on $h_t$ predicts whether $\KL_t$ lies above its median. Its weight vector $v$ defines the model's \emph{internal predictive-difficulty readout} $v^\top h_t$. On cartpole the probe separates high- from low-KL states on 10{,}000 fresh held-out states (AUROC $0.872$) and on the same states with $\sigma{=}0.1$ Gaussian observation noise ($0.807$).
+A logistic-regression probe on $h_t$, fitted on the probe-fit episodes, predicts whether $\KL_t$ exceeds $\tau$. Its weight vector $v$ defines the model's \emph{internal predictive-difficulty readout}. On cartpole the probe separates high- from low-KL states on the evaluation episodes (AUROC \res{p1.cartpole.primary.probe_eval_auroc}{.3f}) and on the same episodes with $\sigma{=}0.1$ Gaussian observation noise (\res{p1.cartpole.primary.table2.auroc_noisy}{.3f}). A probe fitted after projecting out the top-50 principal components of $h_t$ reaches \res{p4.cartpole.pc_scrubbed.eval_auroc}{.3f}, and a one-hidden-layer MLP probe \res{p4.cartpole.mlp.eval_auroc}{.3f} (Table~\ref{tab:crosstask} gives all tasks).
 
-The probe reads more than KL magnitude. We pool both sets, split them into ten KL-percentile bins, and within each bin contrast the bottom and top 30\% by reconstruction error. The two groups share a KL distribution (22.9 vs.\ 23.9 nats) but differ about ninefold in reconstruction error (0.052 vs.\ 0.471). The probe still separates them (AUROC $0.714$; $0.712$ when rebuilt from un-noised states only).
+The probe reads more than KL magnitude. We pool both sets, split them into ten KL-percentile bins, and within each bin contrast the bottom and top 30\% by reconstruction error. The two groups share a KL distribution (\res{p1.cartpole.primary.table2.kl_matched_pooled.kl_mean_low_rec}{.2f} vs.\ \res{p1.cartpole.primary.table2.kl_matched_pooled.kl_mean_high_rec}{.2f} nats) but differ in reconstruction error (\res{p1.cartpole.primary.table2.kl_matched_pooled.rec_mean_low_rec}{.3f} vs.\ \res{p1.cartpole.primary.table2.kl_matched_pooled.rec_mean_high_rec}{.3f}). The probe separates them with AUROC \res{p1.cartpole.primary.table2.kl_matched_pooled.auroc}{.3f} (\res{p1.cartpole.primary.table2.kl_matched_clean.auroc}{.3f} from un-noised states only).\confirm{direction of the contrast on cartpole}
 
 % Figure placed here so it appears at the top of the next page.
-\widefig{fig2_external.pdf}{0.72}{External validation of endogenous predictive difficulty. (a) Correlation between $C_t$ and future imagination error $\Est_{t,K}$ across horizons $K$, with bootstrap bands. (b) Incremental variance explained by $C_t$ beyond KL, reconstruction and smoothed reconstruction error at $K{=}10$, with 95\% CIs; the right panel enlarges pendulum. (c) Correlation of real-order vs.\ time-scrambled $C_t$ with $\Est$, with $z$ against the scrambled distribution.}{fig:external}
+\widefig{fig2_external.pdf}{0.72}{External validation of endogenous predictive difficulty. (a) Correlation between $C_t$ and future imagination error $\Est_{t,K}$ across horizons $K$, with 95\% bootstrap bands. (b) Incremental variance in $\Est_{t,10}$ explained by $C_t$ (filled) and $\Cp$ (open) beyond $\KL_t$, $\Rec_t$, $\EMA_t$ and $\EMAKL_t$, with 95\% CIs. (c) The same incremental variance for real-order statistics (colour) vs.\ statistics recomputed with past high-KL flags permuted within each episode and the current flag held fixed (grey, mean $\pm$ sd of 20), with $z$ against the scrambled distribution.}{fig:external}
 
 \subsection{Temporal Accumulation}
 
-Regressing the readout on $C_t$ explains $R^2 \approx 0.80$ of its variance on cartpole, against $R^2 \approx 0.52$ for current KL alone: the readout is better described by recent accumulated difficulty than by the present step's surprise. Temporal order matters: recomputing $C_t$ from a time-scrambled sequence of high-KL flags, permuted within each trajectory so that their distribution is preserved but their order destroyed, sharply reduces how well $h_t$ explains it on all three tasks ($z = +18.7$, $+39.0$ and $+51.4$ relative to the scrambled distribution; Figure~\ref{fig:emergence}d). Removing the direction confirms that the readout depends on it: ablating it ($h_t' = h_t - v\,v^\top h_t$) or substituting another held-out state's projection lands at the 100th percentile of a 50-random-direction null ($z \approx -22$ for ablation).
+On cartpole, regressing the readout on $C_t$ explains $R^2 = \res{p1.cartpole.primary.variants.C.r2.point}{.2f}$ of its variance, against $R^2 = \res{p1.cartpole.primary.r2_readout_kl.point}{.2f}$ for current KL alone. Because $C_t$ contains the probe's own label, the decisive comparison uses $\Cp$, which excludes the current step: $R^2(\text{readout}, \Cp) = \res{p1.cartpole.primary.variants.C_past.r2.point}{.2f}$, and $\Cp$ explains a fraction \res{p1.cartpole.primary.variants.C_past.partial_r2_beyond_flag.point}{.3f} [\res{p1.cartpole.primary.variants.C_past.partial_r2_beyond_flag.lo}{.3f}, \res{p1.cartpole.primary.variants.C_past.partial_r2_beyond_flag.hi}{.3f}] of the readout variance left unexplained by the current high-KL indicator (partial $R^2$).\confirm{C^past above current KL on every task, Table 2} The readout is better described by recent accumulated difficulty than by the present step's surprise.
+
+Temporal order matters. A ridge regression from $h_t$, fitted on the probe-fit episodes, predicts real-order $C_t$ on the evaluation episodes far better than $C_t$ recomputed with the past flags permuted within each episode and the current flag held fixed ($z = \res{p1.cartpole.primary.ridge_scramble.C.z}{+.1f}$, \res{p1.reacher.primary.ridge_scramble.C.z}{+.1f} and \res{p1.pendulum.primary.ridge_scramble.C.z}{+.1f} on cartpole, reacher and pendulum; Figure~\ref{fig:emergence}d). Removing the direction confirms that the readout depends on it: ablating it ($h_t' = h_t - v\,v^\top h_t$) lowers the readout at $z = \res{p3.cartpole.primary.nulls.null50.ablate_r0.z}{+.1f}$, \res{p3.reacher.primary.nulls.null50.ablate_r0.z}{+.1f} and \res{p3.pendulum.primary.nulls.null50.ablate_r0.z}{+.1f} against the 50-direction null.
 
 \subsection{Geometry}
 
-The direction $v$ lies about $88^\circ$ from the subspace spanned by the top 50 principal components of $h_t$, so only $\cos 88^\circ \approx 3.5\%$ of its norm falls inside that subspace.\verify{angle computed as $\arccos(\|\mathrm{proj}_U v\|/\|v\|)$; the workshop version quoted 9\% of variance, which is a different quantity} The predictive-difficulty representation occupies a low-variance direction that variance-based analysis of the state would largely overlook.
+Only a fraction \res{p1.cartpole.primary.geometry.standardized_top50.frac}{.3f} of the unit direction $v$ lies in the subspace spanned by the top 50 principal components of the standardised $h_t$ on cartpole (subspace angle \res{p1.cartpole.primary.geometry.standardized_top50.subspace_angle_deg}{.1f}$^\circ$), against \res{p1.cartpole.primary.geometry.standardized_top50.random_mean}{.3f} for a random unit vector (\res{p1.cartpole.primary.geometry.standardized_top50.percentile_vs_random}{.1f}th percentile of 1{,}000 random vectors; Figure~\ref{fig:emergence}c).\confirm{fraction below the random 5th percentile on each task before calling it low-variance} The readout direction is thus under-represented in the dominant variance of the state, which variance-based analysis would emphasise.
 
 \subsection{Cross-Task Replication}
 
-Table~\ref{tab:crosstask} repeats the analysis on all three tasks. The geometry replicates closely, and the accumulated construct explains the readout on every task, most strongly on pendulum.
+Table~\ref{tab:crosstask} repeats the analysis on all three tasks and all 13 models.
 
 \begin{table}[H]
-\caption{Emergence across tasks. Cartpole entries are from the primary model; reacher and pendulum entries are ranges over 4 independently trained models.}\label{tab:crosstask}
+\caption{Emergence across tasks, evaluation episodes. Each entry is the primary model, with the range over all models of the task (cartpole 5, reacher 4, pendulum 4) in brackets.}\label{tab:crosstask}
 \centering
-\footnotesize\setlength{\tabcolsep}{4pt}
+\scriptsize\setlength{\tabcolsep}{2pt}
 \begin{tabular}{|l|c|c|c|}
 \hline
  & Cartpole & Reacher & Pendulum \\
 \hline
-Angle to top-50 PCs & $88.0^\circ$ & $89.4^\circ$ & $88.1^\circ$ \\
+Share of $v$ in top-50 PCs & \res{p1.cartpole.primary.geometry.standardized_top50.frac}{.3f} & \res{p1.reacher.primary.geometry.standardized_top50.frac}{.3f} & \res{p1.pendulum.primary.geometry.standardized_top50.frac}{.3f} \\
+\quad (random vector) & \res{p1.cartpole.primary.geometry.standardized_top50.random_mean}{.3f} & \res{p1.reacher.primary.geometry.standardized_top50.random_mean}{.3f} & \res{p1.pendulum.primary.geometry.standardized_top50.random_mean}{.3f} \\
 \hline
-$R^2$(readout, $C_t$) & 0.80 & 0.26 & 0.86 \\
+$R^2$(readout, $\KL_t$) & \res{p1.cartpole.primary.r2_readout_kl.point}{.2f} & \res{p1.reacher.primary.r2_readout_kl.point}{.2f} & \res{p1.pendulum.primary.r2_readout_kl.point}{.2f} \\
 \hline
-KL-matched AUROC & 0.72 & 0.57--0.75 & 0.32--0.50 \\
+$R^2$(readout, $C_t$) & \res{p1.cartpole.primary.variants.C.r2.point}{.2f} & \res{p1.reacher.primary.variants.C.r2.point}{.2f} & \res{p1.pendulum.primary.variants.C.r2.point}{.2f} \\
+ & [\res{p1.cartpole.*.variants.C.r2.point|min}{.2f}, \res{p1.cartpole.*.variants.C.r2.point|max}{.2f}] & [\res{p1.reacher.*.variants.C.r2.point|min}{.2f}, \res{p1.reacher.*.variants.C.r2.point|max}{.2f}] & [\res{p1.pendulum.*.variants.C.r2.point|min}{.2f}, \res{p1.pendulum.*.variants.C.r2.point|max}{.2f}] \\
 \hline
-Within-bin $r(\Rec, C_t)$ & $+0.39$ & $-0.09$ & $-0.12$ \\
+$R^2$(readout, $\Cp$) & \res{p1.cartpole.primary.variants.C_past.r2.point}{.2f} & \res{p1.reacher.primary.variants.C_past.r2.point}{.2f} & \res{p1.pendulum.primary.variants.C_past.r2.point}{.2f} \\
+ & [\res{p1.cartpole.*.variants.C_past.r2.point|min}{.2f}, \res{p1.cartpole.*.variants.C_past.r2.point|max}{.2f}] & [\res{p1.reacher.*.variants.C_past.r2.point|min}{.2f}, \res{p1.reacher.*.variants.C_past.r2.point|max}{.2f}] & [\res{p1.pendulum.*.variants.C_past.r2.point|min}{.2f}, \res{p1.pendulum.*.variants.C_past.r2.point|max}{.2f}] \\
+\hline
+Probe AUROC & \res{p1.cartpole.primary.probe_eval_auroc}{.3f} & \res{p1.reacher.primary.probe_eval_auroc}{.3f} & \res{p1.pendulum.primary.probe_eval_auroc}{.3f} \\
+\quad PC-scrubbed / MLP & \res{p4.cartpole.pc_scrubbed.eval_auroc}{.3f} / \res{p4.cartpole.mlp.eval_auroc}{.3f} & \res{p4.reacher.pc_scrubbed.eval_auroc}{.3f} / \res{p4.reacher.mlp.eval_auroc}{.3f} & \res{p4.pendulum.pc_scrubbed.eval_auroc}{.3f} / \res{p4.pendulum.mlp.eval_auroc}{.3f} \\
+\hline
+KL-matched AUROC & \res{p1.cartpole.primary.table2.kl_matched_pooled.auroc}{.2f} & \res{p1.reacher.primary.table2.kl_matched_pooled.auroc}{.2f} & \res{p1.pendulum.primary.table2.kl_matched_pooled.auroc}{.2f} \\
+ & [\res{p1.cartpole.*.table2.kl_matched_pooled.auroc|min}{.2f}, \res{p1.cartpole.*.table2.kl_matched_pooled.auroc|max}{.2f}] & [\res{p1.reacher.*.table2.kl_matched_pooled.auroc|min}{.2f}, \res{p1.reacher.*.table2.kl_matched_pooled.auroc|max}{.2f}] & [\res{p1.pendulum.*.table2.kl_matched_pooled.auroc|min}{.2f}, \res{p1.pendulum.*.table2.kl_matched_pooled.auroc|max}{.2f}] \\
+\hline
+Within-bin $r(\Rec, C_t)$ & \res{p1.cartpole.primary.table2.within_bin_r_rec_ct.mean}{+.2f} & \res{p1.reacher.primary.table2.within_bin_r_rec_ct.mean}{+.2f} & \res{p1.pendulum.primary.table2.within_bin_r_rec_ct.mean}{+.2f} \\
 \hline
 \end{tabular}
 \end{table}
 
-The KL-matched contrast labels its groups by reconstruction error, so its direction follows the sign of the within-bin correlation between reconstruction error and $C_t$ (last row): positive on cartpole, negative on reacher and pendulum. This shows that the representation is not a proxy for reconstruction error; Section~\ref{sec:interpretation} returns to this task dependence.
+The KL-matched contrast labels its groups by reconstruction error, so its direction is expected to follow the sign of the within-bin correlation between reconstruction error and $C_t$ (last row).\confirm{sign agreement between the last two rows on every task} The contrast is therefore a statement about how reconstruction error and difficulty history co-vary on each task, not a task-independent measure of the representation; Section~\ref{sec:interpretation} returns to this task dependence.
 
 % ===========================================================================
 \section{\uppercase{Predictive Difficulty Predicts Future Imagination Error}}
 \label{sec:external}
 
-To determine whether the discovered representation means more than its KL-derived discovery target, we evaluate it against an external quantity defined entirely from imagined and real future trajectories: $\Est_{t,K}$ (Equation~\ref{eq:estate}).
+To determine whether the discovered history means more than its KL-derived discovery target, we evaluate it against an external quantity defined entirely from imagined and real future trajectories: $\Est_{t,K}$ (Equation~\ref{eq:estate}).
 
 \subsection{Horizon Dependence}
 
-$C_t$ is positively correlated with $\Est_{t,K}$ at every horizon $K \in \{1,5,10,20\}$ on every task (Figure~\ref{fig:external}a). The association is strongest and nearly horizon-independent on cartpole ($r \approx 0.6$), and decays with horizon on reacher and pendulum: accumulated difficulty at time $t$ indicates how far imagination will depart from reality over the following steps.
-
-% Figure placed here so it appears at the top of the next page.
-\widefig{fig3_mechanism.pdf}{0.72}{From a distributed direction to mechanistic substructure. (a) Share of $v$ carried by the top-$n$ SAE atoms for every task and SAE seed (line style); even the top ten atoms carry only a few percent.\verify{exact top-10 share} (b) Held-out association of selected atoms with KL and with $\Est$. Reacher \#612 predicts external error while being nearly uncorrelated with KL; cartpole \#156 is associated with both. Grey markers show the atom selected under each SAE seed.}{fig:mechanism}
+$C_t$ is correlated with $\Est_{t,K}$ at every horizon $K \in \{1,5,10,20\}$ (Figure~\ref{fig:external}a; at $K{=}10$, $r = \res{p2.cartpole.horizons.10.C.point}{.2f}$, \res{p2.reacher.horizons.10.C.point}{.2f} and \res{p2.pendulum.horizons.10.C.point}{.2f} on cartpole, reacher and pendulum).\confirm{sign and horizon trend per task}
 
 \subsection{Incremental Information}
 
 Because $C_t$ is built from KL, and KL may itself predict future error, a standalone correlation is not sufficient. We fit
 \begin{equation}
-\Est_{t,K} \sim C_t + \KL_t + \Rec_t + \EMA_t
+\Est_{t,10} \sim S_t + \KL_t + \Rec_t + \EMA_t + \EMAKL_t,
 \label{eq:incr}
 \end{equation}
-and report the variance explained by $C_t$ beyond the instantaneous and smoothed baselines, $\Delta R^2 = R^2_{\text{full}} - R^2_{\text{without } C_t}$, at $K{=}10$ (Figure~\ref{fig:external}b).
+where $S_t$ is $C_t$ or $\Cp$ and $\EMA_t$ and $\EMAKL_t$ are exponential moving averages of $\Rec_t$ and $\KL_t$ whose smoothing constants are chosen on the calibration episodes to best predict $\Est_{t,10}$, giving the smoothing baselines their best chance. We report $\Delta R^2 = R^2_{\text{full}} - R^2_{\text{without } S_t}$ (Table~\ref{tab:external}, Figure~\ref{fig:external}b).
 
 \begin{table}[H]
-\caption{Incremental variance in future imagination error ($K{=}10$) explained by $C_t$ beyond KL, reconstruction and smoothed reconstruction error, with all baselines in the model. 6{,}000 sites per task.\verify{ensemble disagreement was an extra regressor for cartpole only in the original analysis; state per task whether these values include it}}\label{tab:external}
+\caption{Incremental variance in future imagination error ($K{=}10$) explained by $C_t$ and by $\Cp$ beyond $\KL_t$, $\Rec_t$, $\EMA_t$ and $\EMAKL_t$ (no ensemble term), with 95\% episode-bootstrap CIs. All sites of 100 evaluation episodes per task.}\label{tab:external}
 \centering
-\footnotesize\setlength{\tabcolsep}{4pt}
+\scriptsize\setlength{\tabcolsep}{2pt}
 \begin{tabular}{|l|c|c|}
 \hline
-Task & $\Delta R^2$ & 95\% CI \\
+Task & $\Delta R^2$, $C_t$ & $\Delta R^2$, $\Cp$ \\
 \hline
-cartpole & $\mathbf{+0.0280}$ & $[+0.0154,\ +0.0433]$ \\
+cartpole & \res{p2.cartpole.table3.C.delta_r2.point}{+.4f} [\res{p2.cartpole.table3.C.delta_r2.lo}{+.4f}, \res{p2.cartpole.table3.C.delta_r2.hi}{+.4f}] & \res{p2.cartpole.table3.C_past.delta_r2.point}{+.4f} [\res{p2.cartpole.table3.C_past.delta_r2.lo}{+.4f}, \res{p2.cartpole.table3.C_past.delta_r2.hi}{+.4f}] \\
 \hline
-reacher & $\mathbf{+0.0182}$ & $[+0.0083,\ +0.0309]$ \\
+reacher & \res{p2.reacher.table3.C.delta_r2.point}{+.4f} [\res{p2.reacher.table3.C.delta_r2.lo}{+.4f}, \res{p2.reacher.table3.C.delta_r2.hi}{+.4f}] & \res{p2.reacher.table3.C_past.delta_r2.point}{+.4f} [\res{p2.reacher.table3.C_past.delta_r2.lo}{+.4f}, \res{p2.reacher.table3.C_past.delta_r2.hi}{+.4f}] \\
 \hline
-pendulum & $\mathbf{+0.0019}$ & $[+0.0001,\ +0.0051]$ \\
+pendulum & \res{p2.pendulum.table3.C.delta_r2.point}{+.4f} [\res{p2.pendulum.table3.C.delta_r2.lo}{+.4f}, \res{p2.pendulum.table3.C.delta_r2.hi}{+.4f}] & \res{p2.pendulum.table3.C_past.delta_r2.point}{+.4f} [\res{p2.pendulum.table3.C_past.delta_r2.lo}{+.4f}, \res{p2.pendulum.table3.C_past.delta_r2.hi}{+.4f}] \\
 \hline
 \end{tabular}
 \end{table}
 
-On every task the confidence interval excludes zero. \textbf{The endogenous representation contributes non-redundant information about future imagination failure beyond instantaneous prediction-error statistics.} A variance-inflation and partial-correlation analysis confirms that the pendulum effect is a genuine partial effect rather than an artefact of collinearity among regressors.
+\confirm{state which tasks have a CI excluding zero, for C_t and for C^past}\textbf{The endogenous history contributes non-redundant information about future imagination failure beyond instantaneous and smoothed prediction-error statistics.} The effect does not depend on in-sample fitting: with regression coefficients fitted on the calibration episodes and evaluated on the evaluation episodes, $C_t$ adds \res{p2.cartpole.crossfit_delta_r2.C}{+.4f}, \res{p2.reacher.crossfit_delta_r2.C}{+.4f} and \res{p2.pendulum.crossfit_delta_r2.C}{+.4f}.
 
 \subsection{History, Not Smoothing}
 
-The recurrent construct is not reducible to smoothing. In a direct head-to-head at $K{=}10$, with $C_t$ and $\EMA_t$ as the only two regressors, adding $C_t$ to $\EMA_t$ raises the variance explained in $\Est$ by $+0.177$, $+0.049$ and $+0.013$ on cartpole, reacher and pendulum. These values are larger than those in Table~\ref{tab:external} because that table also controls for KL and reconstruction error. For predicting $\Est$, real-order $C_t$ also exceeds its time-scrambled counterparts decisively on cartpole ($z = +19.6$) and reacher ($z = +21.5$; Figure~\ref{fig:external}c): the order in which difficulty accumulates carries information about future failure.
+The recurrent construct is not reducible to smoothing. In a direct head-to-head at $K{=}10$, with $C_t$ and a single smoothed baseline as the only regressors, adding $C_t$ to $\EMA_t$ raises the variance explained in $\Est$ by \res{p2.cartpole.head_to_head.C_vs_emarec.ct_beyond_rival.point}{+.3f}, \res{p2.reacher.head_to_head.C_vs_emarec.ct_beyond_rival.point}{+.3f} and \res{p2.pendulum.head_to_head.C_vs_emarec.ct_beyond_rival.point}{+.3f} on cartpole, reacher and pendulum, and adding it to $\EMAKL_t$ by \res{p2.cartpole.head_to_head.C_vs_emakl.ct_beyond_rival.point}{+.3f}, \res{p2.reacher.head_to_head.C_vs_emakl.ct_beyond_rival.point}{+.3f} and \res{p2.pendulum.head_to_head.C_vs_emakl.ct_beyond_rival.point}{+.3f}.\confirm{also report the reverse direction if the rival adds more} The order in which difficulty accumulates matters: real-order $C_t$ exceeds statistics with the past flags permuted and the current flag fixed ($z = \res{p2.cartpole.scrambling_external.C.z}{+.1f}$, \res{p2.reacher.scrambling_external.C.z}{+.1f} and \res{p2.pendulum.scrambling_external.C.z}{+.1f}; Figure~\ref{fig:external}c).
 
-% ===========================================================================
-\section{\uppercase{Distributed Representation with Causally Implicated Substructure}}
-\label{sec:mechanism}
-
-With the representation established and externally validated, we ask how it is implemented.
-
-\subsection{Global Structure}
-
-We train a TopK sparse autoencoder \cite{makhzani2013ksparse,gao2024scaling} on pooled hidden states ($256 \rightarrow 2048$, $k{=}48$, three seeds) and decompose $v$ over its decoder dictionary. The single largest atom carries 0.3--0.5\% of $v$ and the top four carry 0.9--1.2\%, on all three tasks and all three SAE seeds (Figure~\ref{fig:mechanism}a). A random vector passed through the same analysis is classified identically despite being reconstructed at cosine $\approx 0.97$, confirming that the measure is not an artefact of overcompleteness. \textbf{Predictive difficulty is distributed broadly across the recurrent state rather than localised to a single feature.} Same-seed SAE trainings produce byte-identical decoder weights and identical atom rankings, so atom identities within a seed are stable; across seeds, atoms are matched by decoder cosine similarity \cite{leask2025canonical}.
+\subsection{Robustness to the Definition of the History}
+\label{sec:robust}
 
 % Figure placed here so it appears at the top of the next page.
-\widefig{H}{fig4_dissociation.pdf}{0.72}{Causal intervention separates the mechanism supporting predictive-difficulty self-report from mechanisms contributing to external predictive quality. (a) Summary: filled circles mark an effect beyond the empirical null, hollow circles a null effect. (b) Causal $z$ against the 50-direction null for the internal readout (immediately, $k{=}0$, and ten steps later, $k{=}10$) and for external error $\Est$; small dots are individual seeds, bars $\pm1$ sd, and the grey band marks $|z|<2$. Steering dense $v$ moves the readout on every task while $\Est$ stays at the null; ablating reacher \#612 moves $\Est$; ablating cartpole \#156 moves both.}{fig:dissociation}
+\widefig{fig5_robustness.pdf}{0.72}{Robustness of the external effect to the definition of the history. (a) $\Delta R^2$ for $\Est_{t,10}$ beyond $\KL_t$, $\Rec_t$, $\EMA_t$ and $\EMAKL_t$ for eight definitions (threshold at the calibration median, 60th or 70th percentile, or a discounted sum of calibration-standardised KL; each with (filled) and without (open) the current step), $\gamma$ chosen on calibration, 95\% CIs. (b) $\Delta R^2$ as a function of a fixed $\gamma$ for $C_t$ (solid) and $\Cp$ (dashed), with 95\% bands.}{fig:robust}
 
-\subsection{Localised Substructure}
-
-A distributed direction can still contain components with distinct roles. We select candidate atoms on one half of the held-out sites, evaluate them on the other half, and relate each atom's activation to KL, to $\Est$, and to causal ablation of the atom's decoder direction (Section~\ref{sec:causal}). Two atoms stand out (Table~\ref{tab:atoms}, Figure~\ref{fig:mechanism}b).
-
-\begin{table}[H]
-\caption{Two sparse components, analysed on each task's primary model. $r$ values on held-out sites; causal $z$ for ablating the atom's decoder direction, against the 50-direction null (Section~\ref{sec:causal}).}\label{tab:atoms}
-\centering
-\footnotesize\setlength{\tabcolsep}{4pt}
-\begin{tabular}{|l|c|c|}
-\hline
- & Reacher \#612 & Cartpole \#156 \\
-\hline
-$r$(activation, KL) & 0.02--0.06 & $+0.499$ \\
-\hline
-$r$(activation, $\Est$) & $+0.21$--$0.29$ & positive\verify{value} \\
-\hline
-Causal $z$ on $\Est$ & $+2.67$ & $+10.3$ \\
-\hline
-Causal $z$ on readout & n.s. & $-5.0$ \\
-\hline
-Incremental $R^2$ carried & $+0.0054$ & $+0.0038$ \\
-\hline
-\end{tabular}
-\end{table}
-
-Reacher \#612 is essentially independent of KL yet predicts and causally affects external error. Cartpole \#156 is strongly KL-associated and has the largest external causal effect observed, while also affecting the internal readout. Each atom carries its own incremental contribution to predicting $\Est$, which is fully accounted for by that atom.\verify{exact removal operation behind the last row} Both are separate objects from $v$ rather than sub-components of it. We describe them not as difficulty neurons but as \textbf{task-specific, causally implicated substructure within the distributed representation}.
+We recompute the incremental analysis for eight definitions of the history and for every fixed $\gamma$ in the grid (Figure~\ref{fig:robust}).\confirm{summarise: sign and CI across all variants and gammas per task} No definition was selected by its external effect: thresholds, standardisation and $\gamma$ are fixed on the calibration episodes by the readout fit alone.
 
 % ===========================================================================
 \section{\uppercase{Causal Dissociation Between Internal Readout and External Predictive Quality}}
 \label{sec:causal}
 
-A representation that predicts a quantity need not be the mechanism that produces the capability associated with that quantity. We therefore measure two outcomes of every intervention: the model's \emph{internal} predictive-difficulty readout $v^\top h$, and the \emph{external} quality of its imagined predictions, $\Est$. We steer the dense direction and ablate sparse mechanistic components.
+% Figure placed here so it appears at the top of the next page.
+\widefig{fig4_dissociation.pdf}{0.72}{Steering the readout direction moves the internal readout but not external predictive quality. $z$ of the dose-response slope against the 50-direction null for the internal readout immediately ($k{=}0$, hollow) and ten posterior steps later ($k{=}10$, filled), and for external imagination error $\Est_{t,10}$ (vermillion). One marker per world model; the grey band marks $|z|<2$.}{fig:dissociation}
+
+A representation that predicts a quantity need not be the mechanism that produces the capability associated with that quantity. We therefore measure two outcomes of every intervention: the model's \emph{internal} predictive-difficulty readout, and the \emph{external} quality of its imagined predictions, $\Est$.
 
 \subsection{Dense-Direction Intervention}
 
-We steer $h_t' = h_t + \lambda v$ for $\lambda \in \{-2,-1,0,+1,+2\}\,\sigma_v$, where $\sigma_v$ is the standard deviation of $v^\top h$ on a held-out pool, and score each dose-response slope against the 50-direction null. The readout is recorded immediately ($k{=}0$) and ten steps later ($k{=}10$), after the perturbation has propagated through the recurrent transition (Equation~\ref{eq:gru}).\verify{whether the 10 steps use posterior or prior updates}
+At 500 evaluation sites per model we steer $h_t' = h_t + \lambda v$ for $\lambda \in \{-2,-1,0,+1,+2\}\,\sigma_v$, where $\sigma_v$ is the standard deviation of $v^\top h$ on the calibration episodes, and apply the same absolute steps along each null direction. The readout is recorded immediately ($k{=}0$) and ten steps later ($k{=}10$), after the perturbation has propagated through ten posterior updates with the real observations and actions (Equation~\ref{eq:gru}); $\Est_{t,10}$ is computed by prior imagination from the steered state. All conditions at a site share their random latent draws. Each dose-response slope is scored against the null.
 
 \begin{table}[H]
 \caption{Dense-direction steering, $z$ against a 50-direction null, mean $\pm$ sd over independently trained world models.}\label{tab:steer}
 \centering
-\footnotesize\setlength{\tabcolsep}{2pt}
+\scriptsize\setlength{\tabcolsep}{2pt}
 \begin{tabular}{|l|c|c|c|c|}
 \hline
 Task & $n$ & Readout, $k{=}0$ & Readout, $k{=}10$ & $\Est$ \\
 \hline
-cartpole & 5 & $+12.87{\pm}1.64$ & $+12.15{\pm}1.37$ & $+0.22{\pm}0.37$ \\
+cartpole & \res{p3.cartpole.*.nulls.null50.slope_r0.z|n}{d} & $\res{p3.cartpole.*.nulls.null50.slope_r0.z|mean}{+.2f}{\pm}\res{p3.cartpole.*.nulls.null50.slope_r0.z|sd}{.2f}$ & $\res{p3.cartpole.*.nulls.null50.slope_r10.z|mean}{+.2f}{\pm}\res{p3.cartpole.*.nulls.null50.slope_r10.z|sd}{.2f}$ & $\res{p3.cartpole.*.nulls.null50.slope_es.z|mean}{+.2f}{\pm}\res{p3.cartpole.*.nulls.null50.slope_es.z|sd}{.2f}$ \\
 \hline
-reacher & 4 & $+13.34{\pm}1.41$ & $+5.88{\pm}0.66$ & $+0.32{\pm}0.40$ \\
+reacher & \res{p3.reacher.*.nulls.null50.slope_r0.z|n}{d} & $\res{p3.reacher.*.nulls.null50.slope_r0.z|mean}{+.2f}{\pm}\res{p3.reacher.*.nulls.null50.slope_r0.z|sd}{.2f}$ & $\res{p3.reacher.*.nulls.null50.slope_r10.z|mean}{+.2f}{\pm}\res{p3.reacher.*.nulls.null50.slope_r10.z|sd}{.2f}$ & $\res{p3.reacher.*.nulls.null50.slope_es.z|mean}{+.2f}{\pm}\res{p3.reacher.*.nulls.null50.slope_es.z|sd}{.2f}$ \\
 \hline
-pendulum & 4 & $+15.56{\pm}2.96$ & $+11.36{\pm}0.59$ & $+0.62{\pm}0.80$ \\
-\hline
-\end{tabular}
-\end{table}
-
-\textbf{The dense direction is decisively causal for the model's internal predictive-difficulty readout, but not for the external quality of its imagined predictions.} Across all 13 seed--task pairs, every readout $z$ lies between $+5.2$ and $+19.2$, while no individual $\Est$ effect exceeds $z = 1.48$ (Figure~\ref{fig:dissociation}b). The $k{=}10$ column is the most informative: a random direction of equal norm barely projects onto $v$, so the immediate effect is expected, but ten recurrent steps later the shifted readout still stands far beyond the null on every task. The model's own dynamics carry the altered difficulty state forward, and yet its imagination is no better or worse for it.
-
-\subsection{Independent Replication}
-
-The external null replicates in a separate protocol, multi-step ablation of the direction under partial observability, over five seed pairs, with full observations ($z = -0.37 \pm 0.36$) and with partial observations ($z = +0.13 \pm 0.22$). It also replicates under observation-noise distribution shift on all three tasks (maximum $|z| = 1.43$).
-
-\subsection{Sparse-Component Intervention}
-
-The sparse components reveal the complementary picture. Ablating reacher \#612 (removing its decoder direction from $h$) increases external imagination error ($z = +2.67$) without a null-clearing effect on the readout. Ablating cartpole \#156 changes both, in opposite directions: external error rises ($z = +10.3$) while the readout falls ($z = -5.0$). In both cases removing the component makes imagination worse, so these components carry information the model uses to predict.
-
-\begin{table}[H]
-\caption{Three causal patterns inside one recurrent state. Dense $v$: steering, over 13 independently trained models. Atoms: ablation, on each task's primary model.}\label{tab:dissoc}
-\centering
-\footnotesize\setlength{\tabcolsep}{4pt}
-\begin{tabular}{|l|c|c|}
-\hline
-Intervention & Readout & External $\Est$ \\
-\hline
-Steer dense $v$, all tasks & \textbf{yes} ($+5.2$..$+19.2$) & no ($\le 1.48$) \\
-\hline
-Ablate reacher \#612 & no & \textbf{yes} ($+2.67$) \\
-\hline
-Ablate cartpole \#156 & \textbf{yes} ($-5.0$) & \textbf{yes} ($+10.3$) \\
+pendulum & \res{p3.pendulum.*.nulls.null50.slope_r0.z|n}{d} & $\res{p3.pendulum.*.nulls.null50.slope_r0.z|mean}{+.2f}{\pm}\res{p3.pendulum.*.nulls.null50.slope_r0.z|sd}{.2f}$ & $\res{p3.pendulum.*.nulls.null50.slope_r10.z|mean}{+.2f}{\pm}\res{p3.pendulum.*.nulls.null50.slope_r10.z|sd}{.2f}$ & $\res{p3.pendulum.*.nulls.null50.slope_es.z|mean}{+.2f}{\pm}\res{p3.pendulum.*.nulls.null50.slope_es.z|sd}{.2f}$ \\
 \hline
 \end{tabular}
 \end{table}
 
-The dense readout and the model's predictive capability are therefore not the same causal object. Cartpole \#156 makes the point sharply: removing a component that the model needs for accurate imagination \emph{lowers} its own difficulty readout even as real imagination error rises, so the machinery of self-report and the machinery of prediction can move independently. Self-monitoring and predictive capability share a representational space but are carried by causally separable structure.
+\confirm{every readout z > 2 and every E^state |z| < 2; else rewrite this paragraph}\textbf{The readout direction is decisively causal for the model's internal predictive-difficulty readout, but not for the external quality of its imagined predictions.} Across all models, the readout $z$ lies between \res{p3.*.*.nulls.null50.slope_r0.z|min}{+.1f} and \res{p3.*.*.nulls.null50.slope_r0.z|max}{+.1f} at $k{=}0$ and between \res{p3.*.*.nulls.null50.slope_r10.z|min}{+.1f} and \res{p3.*.*.nulls.null50.slope_r10.z|max}{+.1f} at $k{=}10$, while no external effect exceeds $|z| = \res{p3.*.*.nulls.null50.slope_es.z|absmax}{.2f}$ (Figure~\ref{fig:dissociation}). The $k{=}10$ column is the most informative: a random direction of equal norm barely projects onto $v$, so the immediate effect is expected, but ten recurrent steps later the shifted readout still stands far beyond the null. The model's own dynamics carry the altered difficulty state forward, and yet its imagination is no better or worse for it.
+
+\subsection{Robustness of the Null}
+
+The conclusion does not depend on the null. On each primary model, against 500 random directions the readout slope reaches $z = \res{p3.cartpole.primary.nulls.null500.slope_r10.z}{+.1f}$, \res{p3.reacher.primary.nulls.null500.slope_r10.z}{+.1f} and \res{p3.pendulum.primary.nulls.null500.slope_r10.z}{+.1f} at $k{=}10$ while $\Est$ stays at $z = \res{p3.cartpole.primary.nulls.null500.slope_es.z}{+.2f}$, \res{p3.reacher.primary.nulls.null500.slope_es.z}{+.2f} and \res{p3.pendulum.primary.nulls.null500.slope_es.z}{+.2f}; against random directions confined, like $v$, to the complement of the top-50 principal subspace, the corresponding values are \res{p3.cartpole.primary.nulls.subspace50.slope_r10.z}{+.1f}, \res{p3.reacher.primary.nulls.subspace50.slope_r10.z}{+.1f}, \res{p3.pendulum.primary.nulls.subspace50.slope_r10.z}{+.1f} and \res{p3.cartpole.primary.nulls.subspace50.slope_es.z}{+.2f}, \res{p3.reacher.primary.nulls.subspace50.slope_es.z}{+.2f}, \res{p3.pendulum.primary.nulls.subspace50.slope_es.z}{+.2f}. Ablating the direction instead of steering it gives the same pattern (external $z = \res{p3.cartpole.primary.nulls.null50.ablate_es.z}{+.2f}$, \res{p3.reacher.primary.nulls.null50.ablate_es.z}{+.2f} and \res{p3.pendulum.primary.nulls.null50.ablate_es.z}{+.2f}).\confirm{same conclusion under every null}
+
+The readout and the model's predictive capability are therefore not the same causal object: the direction that carries the model's report of its own difficulty can be moved, and the report persists through the recurrent dynamics, without any corresponding change in how well the model imagines.
 
 % ===========================================================================
 \section{\uppercase{Interpretation and Scope}}
@@ -357,11 +329,11 @@ The dense readout and the model's predictive capability are therefore not the sa
 
 \subsection{What the Representation Represents}
 
-The evidence identifies \emph{accumulated predictive difficulty}: a discounted memory of recent high-surprise steps, carried in a low-variance direction of the recurrent state, and informative about how far imagination will depart from reality.
+The evidence identifies \emph{accumulated predictive difficulty}: a discounted memory of recent high-surprise steps, readable from the recurrent state beyond the current step, and informative about how far imagination will depart from reality.
 
 \subsection{What It Does Not Establish}
 
-The representation should not be read as subjective uncertainty, as a universal detector of model failure, or as a single causal circuit. It is derived from the model's own surprise signal, so it reflects difficulty the model has registered. Consistent with this, it does not flag the silent, reward-inflating latent drift that RSSMs can exhibit off-distribution \cite{berger2026biased}: in states where imagined reward is inflated while real reward is low, $C_t$ is lower than elsewhere on cartpole and reacher. Its implementation is distributed, and its causal role for self-report is distinct from the mechanisms of predictive quality (Section~\ref{sec:causal}). The sparse-component effects are established against random directions in $h$-space on each task's primary model; we do not claim they are specific relative to other dictionary atoms. Finally, since $C_t$ includes the current step's high-KL indicator and $\gamma$ was chosen by its fit to $h_t$, the comparisons of Section~\ref{sec:emergence} describe the readout; the evidence that the state carries information beyond the current step comes from Section~\ref{sec:external}, where current KL is controlled for.
+The representation should not be read as subjective uncertainty, as a universal detector of model failure, or as a mechanism of predictive quality. It is derived from the model's own surprise signal, so it reflects difficulty the model has registered. Its causal role, as tested here, is limited to self-report (Section~\ref{sec:causal}). The probe is linear and trained on a binary label; the MLP and principal-component-scrubbed probes in Table~\ref{tab:crosstask} bound, but do not exhaust, what other readouts could find.
 
 \subsection{A Filtering Interpretation}
 
@@ -369,33 +341,33 @@ Filtering theory explains why a history of surprise should predict future error.
 
 A scalar Kalman-filter simulation (three regimes $\times$ 10 seeds, with a pre-registered validity criterion for the regime manipulation) reproduces this pattern in a controlled analogue. A $C_t$ analogue built from innovations, evaluated beyond the filter's own instantaneous innovation magnitude and its reported posterior variance, adds $\Delta R^2 = +0.0004 \pm 0.0003$ in the stationary, correctly specified regime, $+0.0046 \pm 0.0018$ under misspecification ($z = +13.3$), and $+0.0825 \pm 0.0142$ under non-stationarity ($z = +257.6$). A world model trained on finite data is never a correctly specified filter, which offers a principled reason for the representation to emerge and to carry information.
 
-\subsection{A Stronger Internal Representation Under Partial Observability}
-
-The filtering account suggests the representation should be more pronounced when the recurrent state must infer quantities it cannot observe. We trained paired cartpole models identical except for their encoder input: one sees the full state, the other has velocity masked, while both decoders reconstruct the full state, forcing the partially observing model to filter velocity through $h_t$. Over five seed pairs, the internal representation strengthens under partial observation on every pair: probe AUROC rises from $0.871 \pm 0.028$ to $0.951 \pm 0.013$, and the variance of $C_t$ explained by $h_t$ from $0.761 \pm 0.035$ to $0.824 \pm 0.013$. Its incremental contribution to predicting $\Est$ beyond KL and reconstruction error shrinks ($0.062 \pm 0.027$ to $0.009 \pm 0.003$), because when velocity is hidden the instantaneous error signals themselves already explain most of the future error. The dense direction's causal null on $\Est$ holds in both conditions (Section~\ref{sec:causal}).
-
 \subsection{Cross-Task Interpretation}
 
-The strength of the representation's link to external prediction varies by task: largest on cartpole, intermediate on reacher, and smallest on pendulum, where the incremental effect is small and the temporal ordering of $C_t$ does not add predictive value for $\Est$ ($z = -11.7$ against the scrambled null) despite pendulum having the strongest internal fit (Table~\ref{tab:crosstask}). We read this as evidence that the phenomenon is \emph{structured rather than universal}: the internal representation is present on all three tasks, while its relationship to external predictive quality depends on the dynamical regime. The filtering account offers a candidate explanation for this dependence, since the value of accumulated evidence depends on how temporally structured the model's errors are; we do not estimate each task's degree of misspecification directly.
+The filtering account predicts that the external value of accumulated difficulty should be larger where the model's surprise is more temporally structured; we stated this prediction before computing the diagnostic. The lag-1 autocorrelation of $\KL_t$ on the evaluation episodes is \res{p6.cartpole.acf_kl.1}{.2f}, \res{p6.reacher.acf_kl.1}{.2f} and \res{p6.pendulum.acf_kl.1}{.2f} on cartpole, reacher and pendulum (of the high-KL indicator: \res{p6.cartpole.acf_flag.1}{.2f}, \res{p6.reacher.acf_flag.1}{.2f}, \res{p6.pendulum.acf_flag.1}{.2f}), against incremental effects of \res{p2.cartpole.table3.C_past.delta_r2.point}{+.4f}, \res{p2.reacher.table3.C_past.delta_r2.point}{+.4f} and \res{p2.pendulum.table3.C_past.delta_r2.point}{+.4f} for $\Cp$.\confirm{whether the ordering agrees with the prediction; with three tasks this is descriptive only} With three tasks this comparison is descriptive, and we do not estimate each task's degree of misspecification directly.
+
+\subsection{Scope}
+
+The study uses one RSSM family at one scale, with vector observations, on three dm-control tasks, with data from a uniform-random policy. Pixel observations, larger world models, data from learned policies, and comparisons with methods that train states to be predictive of future quantities are outside its scope.
 
 % ===========================================================================
 \section{\uppercase{Discussion}}
 \label{sec:discussion}
 
-\textbf{What have we learned?} Recurrent world models spontaneously encode predictive difficulty in their hidden states. The representation emerges without supervision, occupies a direction that variance-based analysis would miss, summarises the history of difficulty rather than only its current value, and is internally stronger when the model must filter unobserved state.
+\textbf{What have we learned?} Recurrent world models spontaneously encode predictive difficulty in their hidden states. The representation emerges without supervision, summarises the history of difficulty rather than only its current value, and is readable beyond the current step.
 
-\textbf{Why is it interesting?} The representation is temporally structured, externally meaningful and mechanistically distributed. It predicts a quantity defined entirely outside the signal from which it was discovered, and it does so beyond the instantaneous and smoothed statistics that a designer would construct by hand.
+\textbf{Why is it interesting?} The representation is temporally structured and externally meaningful. It predicts a quantity defined entirely outside the signal from which it was discovered, and it does so beyond the instantaneous and smoothed statistics that a designer would construct by hand, across the definitions of the history we tested.
 
-\textbf{What is the deeper lesson?} Internal self-monitoring representations should not automatically be interpreted as the causal mechanisms of the capabilities they report. Had we measured only the readout, steering along $v$ would have appeared to be strong causal evidence for a difficulty mechanism; measuring external quality in the same intervention revealed the dissociation. We recommend that causal claims about self-monitoring representations report both outcomes. The present study uses one RSSM family at one scale on three dm-control tasks; extending the analysis to larger world models and richer environments is a natural next step.
+\textbf{What is the deeper lesson?} Internal self-monitoring representations should not automatically be interpreted as the causal mechanisms of the capabilities they report. Had we measured only the readout, steering along $v$ would have appeared to be strong causal evidence for a difficulty mechanism; measuring external quality in the same intervention revealed the dissociation. We recommend that causal claims about self-monitoring representations report both outcomes.
 
 % ===========================================================================
 \section{\uppercase{Conclusion}}
 \label{sec:conclusion}
 
-A recurrent world model trained with no supervision for predictive difficulty encodes, in a low-variance direction of its deterministic state, a temporally accumulated representation of that difficulty, and this representation predicts future divergence between imagination and reality beyond instantaneous error statistics.
+A recurrent world model trained with no supervision for predictive difficulty carries, in its deterministic state, a readable and temporally accumulated representation of that difficulty, and this representation predicts future divergence between imagination and reality beyond instantaneous and smoothed error statistics.
 
-The representation is distributed across the recurrent state yet contains causally implicated substructure. Intervention separates its two roles: the dense direction controls the model's internal report of predictive difficulty, while distinct sparse components contribute causally to external predictive quality.
+Intervention separates its two roles: the readout direction controls the model's internal report of predictive difficulty, and that report persists through the recurrent dynamics, while the external quality of the model's predictions does not move with it.
 
-Learned recurrent systems can develop internal monitors of predictive difficulty whose representational and causal structure is richer than a conventional uncertainty scalar.
+Learned recurrent systems can develop internal monitors of predictive difficulty that are informative about, but causally separable from, the quality of their own predictions.
 
 % ===
 % ACKNOWLEDGEMENTS: commented out for double-blind review. Restore at
