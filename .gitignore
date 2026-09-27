@@ -5,3 +5,4 @@ models/
 wandb/
 tests/__pycache__/
 src/rerun/__pycache__/
+__pycache__/run_sprint_*.pyc
