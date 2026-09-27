@@ -30,6 +30,8 @@ from src.rerun import pipeline as P
 from src.rerun.stats import GramSet, pearson_ci, acf_within
 
 N_SCRAMBLE = 20
+N_SCATTER = 3000
+SCATTER_SEED = 99
 SCRAMBLE_SEED = 20_20
 KMAX = max(P.HORIZONS)
 
@@ -41,9 +43,9 @@ def states_for(task, label, path, smoke, need_estate):
     os.makedirs(d, exist_ok=True)
     model = None
     out = {}
-    for split in ('probe', 'calibration', 'evaluation'):
+    for split in ('probe', 'calibration', 'evaluation', 'evaluation_noisy'):
         f = os.path.join(d, f'{task}_{label}_{split}.npz')
-        want_es = need_estate and split != 'probe'
+        want_es = need_estate and split in ('calibration', 'evaluation')
         if os.path.exists(f):
             arr = dict(np.load(f))
             if not want_es or 'estate_10' in arr:
@@ -109,6 +111,95 @@ def pick_alpha(series_cal, target_cal, mask):
     return max(scores, key=scores.get), scores
 
 
+# ─── Table-2 extras: noisy AUROC, KL-matched contrast, within-bin r, ridge scramble ──
+
+N_KL_BINS = 10
+CONTRAST_FRAC = 0.30
+RIDGE_ALPHA = 1.0
+
+
+def kl_matched_contrast(kl, rec, score):
+    """Paper Sec. 4.1 construction: 10 KL-percentile bins over the pooled set;
+    within each bin, bottom 30% by Rec (label 0) vs top 30% by Rec (label 1).
+    Returns AUROC of `score` and group means of KL and Rec."""
+    edges = np.percentile(kl, np.linspace(0, 100, N_KL_BINS + 1))
+    b = np.clip(np.searchsorted(edges, kl, side='right') - 1, 0, N_KL_BINS - 1)
+    lab, sel = np.full(len(kl), -1), np.zeros(len(kl), bool)
+    for i in range(N_KL_BINS):
+        idx = np.where(b == i)[0]
+        if len(idx) < 10:
+            continue
+        lo, hi = np.percentile(rec[idx], [100 * CONTRAST_FRAC, 100 * (1 - CONTRAST_FRAC)])
+        lab[idx[rec[idx] <= lo]] = 0
+        lab[idx[rec[idx] >= hi]] = 1
+    sel = lab >= 0
+    y = lab[sel]
+    return dict(auroc=float(roc_auc_score(y, score[sel])), n=int(sel.sum()),
+                kl_mean_low_rec=float(kl[sel][y == 0].mean()), kl_mean_high_rec=float(kl[sel][y == 1].mean()),
+                rec_mean_low_rec=float(rec[sel][y == 0].mean()), rec_mean_high_rec=float(rec[sel][y == 1].mean()))
+
+
+def within_bin_r(kl, x, y):
+    """Mean over 10 KL-percentile bins of Pearson r(x, y) within the bin."""
+    edges = np.percentile(kl, np.linspace(0, 100, N_KL_BINS + 1))
+    b = np.clip(np.searchsorted(edges, kl, side='right') - 1, 0, N_KL_BINS - 1)
+    rs = [np.corrcoef(x[b == i], y[b == i])[0, 1] for i in range(N_KL_BINS) if (b == i).sum() > 10]
+    return dict(mean=float(np.nanmean(rs)), per_bin=[float(r) for r in rs])
+
+
+def ridge_fit(X, y, alpha=RIDGE_ALPHA):
+    mu, sd = X.mean(0), X.std(0) + 1e-8
+    Z = (X - mu) / sd
+    ym = y.mean()
+    w = np.linalg.solve(Z.T @ Z + alpha * np.eye(Z.shape[1]), Z.T @ (y - ym))
+    return lambda Xn: ((Xn - mu) / sd) @ w + ym
+
+
+def r2(y, yhat):
+    return float(1 - ((y - yhat) ** 2).sum() / ((y - y.mean()) ** 2).sum())
+
+
+def ridge_scramble(S, cp, gammas, rng):
+    """Paper Fig. 1d: how well h_t predicts real-order C_t vs time-scrambled C_t.
+    Ridge fit on probe-fit episodes, R^2 on evaluation episodes. Scrambles keep
+    the current flag fixed and permute past flags within each episode."""
+    m = P.MIN_T
+    hp = S['probe']['h'][:, m:].reshape(-1, S['probe']['h'].shape[-1])
+    he = S['evaluation']['h'][:, m:].reshape(-1, hp.shape[1])
+    out = {}
+    for name, inc in (('C', True), ('C_past', False)):
+        g = gammas[name]
+        tp = variant(name, S['probe']['kl'], cp, g)[:, m:].ravel()
+        te = variant(name, S['evaluation']['kl'], cp, g)[:, m:].ravel()
+        real = r2(te, ridge_fit(hp, tp)(he))
+        null = []
+        for _ in range(N_SCRAMBLE):
+            sp = scrambled(S['probe']['kl'], cp['median'], g, rng, inc)[:, m:].ravel()
+            se = scrambled(S['evaluation']['kl'], cp['median'], g, rng, inc)[:, m:].ravel()
+            null.append(r2(se, ridge_fit(hp, sp)(he)))
+        null = np.array(null)
+        out[name] = dict(real=real, null_mean=float(null.mean()), null_std=float(null.std()),
+                         z=float((real - null.mean()) / (null.std() + 1e-12)), n=N_SCRAMBLE, gamma=g)
+    kp, ke = S['probe']['kl'][:, m:].ravel(), S['evaluation']['kl'][:, m:].ravel()
+    out['kl'] = dict(real=r2(ke, ridge_fit(hp, kp)(he)))
+    return out
+
+
+def table2_extras(S, clf, sc, cp, gammas):
+    m = P.MIN_T
+    ev, nz = S['evaluation'], S['evaluation_noisy']
+    sc_ev = P.probe_scores(clf, sc, ev['h'][:, m:]).ravel()
+    sc_nz = P.probe_scores(clf, sc, nz['h'][:, m:]).ravel()
+    kl_ev, kl_nz = ev['kl'][:, m:].ravel(), nz['kl'][:, m:].ravel()
+    rec_ev, rec_nz = ev['rec'][:, m:].ravel(), nz['rec'][:, m:].ravel()
+    ct_ev = variant('C', ev['kl'], cp, gammas['C'])[:, m:].ravel()
+    return dict(
+        auroc_noisy=float(roc_auc_score((kl_nz > cp['median']).astype(int), sc_nz)),
+        kl_matched_pooled=kl_matched_contrast(np.r_[kl_ev, kl_nz], np.r_[rec_ev, rec_nz], np.r_[sc_ev, sc_nz]),
+        kl_matched_clean=kl_matched_contrast(kl_ev, rec_ev, sc_ev),
+        within_bin_r_rec_ct=within_bin_r(kl_ev, rec_ev, ct_ev))
+
+
 # ─── P1 ──────────────────────────────────────────────────────────────────────
 
 def run_p1(task, label, S):
@@ -164,6 +255,14 @@ def run_p1(task, label, S):
                          z=float((real - null.mean()) / (null.std() + 1e-12)), n=N_SCRAMBLE)
     out['scrambling_readout'] = scr
     out['geometry'] = P.geometry(hp, clf, sc)
+    out['table2'] = table2_extras(S, clf, sc, cp, gammas)
+    # seeded site sample for the fig1(a) scatter (figures read results.json only)
+    rs = np.random.default_rng(SCATTER_SEED)
+    ee, tt = np.nonzero(m_emg)
+    pick = rs.choice(len(ee), min(N_SCATTER, len(ee)), replace=False)
+    out['scatter_sample'] = dict(ct=cols['C'][ee[pick], tt[pick]].round(4).tolist(),
+                                 readout=ro[ee[pick], tt[pick]].round(4).tolist())
+    out['ridge_scramble'] = ridge_scramble(S, cp, gammas, np.random.default_rng(SCRAMBLE_SEED + 2))
     return out, (clf, sc, cp, gammas, ro, ro_cal)
 
 

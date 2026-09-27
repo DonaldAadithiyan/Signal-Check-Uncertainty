@@ -77,6 +77,82 @@ def flags(R):
     return out
 
 
+def rng_str(vals, d=2):
+    vals = [v for v in vals if v is not None]
+    if not vals:
+        return 'n/a'
+    return f'{min(vals):.{d}f}–{max(vals):.{d}f}' if len(vals) > 1 else f'{vals[0]:.{d}f}'
+
+
+def paper_tables(R, w):
+    """Tables in icaart_main.tex layout (tab:crosstask, tab:external, tab:steer, tab:dissoc)."""
+    p1, p2, p3 = R.get('p1', {}), R.get('p2', {}), R.get('p3', {})
+    w('## 2a. Paper tables (icaart_main.tex layout) — drop-in values\n')
+    if p1:
+        w('**Table 2 (tab:crosstask).** Primary model; brackets = range over all models of that task '
+          '(primary + replicates). The angle row is replaced by the projection fraction (W3).\n')
+        w('| | ' + ' | '.join(TASKS) + ' |')
+        w('|---|---|---|---|')
+        def row(label, fn, d=2):
+            cells = []
+            for t in TASKS:
+                ms = p1.get(t, {})
+                if 'primary' not in ms:
+                    cells.append('n/a'); continue
+                vals = [fn(m) for m in ms.values()]
+                cells.append(f"{fn(ms['primary']):.{d}f} [{rng_str(vals, d)}] (n={len(vals)})")
+            w(f'| {label} | ' + ' | '.join(cells) + ' |')
+        row('frac of v in top-50 PCs (standardised)', lambda m: m['geometry']['standardized_top50']['frac'], 3)
+        row('  random-vector mean for comparison', lambda m: m['geometry']['standardized_top50']['random_mean'], 3)
+        row('R²(readout, C_t)', lambda m: m['variants']['C']['r2']['point'])
+        row('R²(readout, C_t^past)', lambda m: m['variants']['C_past']['r2']['point'])
+        row('R²(readout, KL_t)', lambda m: m['r2_readout_kl']['point'])
+        row('probe AUROC (clean / held-out)', lambda m: m['probe_eval_auroc'], 3)
+        row('probe AUROC (σ=0.1 noise)', lambda m: m['table2']['auroc_noisy'], 3)
+        row('KL-matched AUROC (pooled)', lambda m: m['table2']['kl_matched_pooled']['auroc'])
+        row('KL-matched AUROC (clean only)', lambda m: m['table2']['kl_matched_clean']['auroc'])
+        row('within-bin r(Rec, C_t)', lambda m: m['table2']['within_bin_r_rec_ct']['mean'])
+        row('ridge h→C_t scramble z (Fig. 1d)', lambda m: m['ridge_scramble']['C']['z'], 1)
+        row('ridge h→C_t^past scramble z', lambda m: m['ridge_scramble']['C_past']['z'], 1)
+        row('γ (calibration) for C_t', lambda m: m['variants']['C']['gamma'])
+        w('')
+    if p2:
+        w('**Table 3 (tab:external).** ΔR² for E^state_10 beyond KL, Rec, EMARec, EMAKL (no ensemble term); '
+          '95% CI from 1,000 episode-bootstrap resamples; 100 evaluation episodes.\n')
+        w('| task | sites | ΔR² C_t | ΔR² C_t^past | ΔR² C_t, paper controls (KL, Rec, EMARec) |')
+        w('|---|---|---|---|---|')
+        for t in TASKS:
+            d = p2.get(t)
+            if d:
+                T3 = d['table3']
+                w(f"| {t} | {d['n_sites']} | {ci(T3['C']['delta_r2'], 4)} | {ci(T3['C_past']['delta_r2'], 4)} | "
+                  f"{ci(T3['C']['delta_r2_paper_controls'], 4)} |")
+        w('\n**§5.3 text (head-to-head, C_t and EMARec only):** ' + '; '.join(
+            f"{t} {p2[t]['head_to_head']['C_vs_emarec']['ct_beyond_rival']['point']:+.3f}" for t in TASKS if t in p2)
+          + '. **External scramble z (Fig. 2c):** ' + '; '.join(
+            f"{t} C {p2[t]['scrambling_external']['C']['z']:+.1f} / C^past {p2[t]['scrambling_external']['C_past']['z']:+.1f}"
+            for t in TASKS if t in p2) + '.\n')
+    if p3:
+        import numpy as np
+        w('**Table 5 (tab:steer).** z of the steering slope vs the 50-direction null, mean ± sd over models.\n')
+        w('| task | n | readout k=0 | readout k=10 | E^state |')
+        w('|---|---|---|---|---|')
+        allr, alle = [], []
+        for t in TASKS:
+            ms = [m['nulls']['null50'] for m in p3.get(t, {}).values() if 'null50' in m['nulls']]
+            if not ms:
+                continue
+            cols = [np.array([m[k]['z'] for m in ms]) for k in ('slope_r0', 'slope_r10', 'slope_es')]
+            allr += list(cols[0]) + list(cols[1]); alle += list(cols[2])
+            w(f'| {t} | {len(ms)} | ' + ' | '.join(f'{c.mean():+.2f} ± {c.std(ddof=1) if len(c) > 1 else 0:.2f}'
+                                                  for c in cols) + ' |')
+        if allr:
+            w(f'\nReadout z range (k=0 ∪ k=10): {min(allr):+.1f} to {max(allr):+.1f}; '
+              f'max |E^state z|: {max(abs(x) for x in alle):.2f}.\n')
+        w('**Table 6 (tab:dissoc).** Dense row from the values above. Atom rows (#612, #156) come only from '
+          'a P5 rerun; without it they are removed.\n')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--smoke', action='store_true')
@@ -113,8 +189,9 @@ def main():
     w('\n'.join(f'- {x}' for x in fl) if fl else '- none detected by the fixed checks')
     w('')
 
+    paper_tables(R, w)
     if 'p1' in R:
-        w('## 2. Tables\n')
+        w('## 2b. Full tables\n')
         w('### Emergence (evaluation episodes; readout = probe probability)\n')
         w('| task | model | probe AUROC | R² KL_t | R² C_t (γ) | R² C^past (γ) | R²(C^past) − R²(KL) | '
           'partial R² C^past beyond flag | scramble z (C / C^past) |')
@@ -214,9 +291,9 @@ def main():
                 w(f"| {t} | {a1['1']:.3f} / {a1['5']:.3f} / {a1['10']:.3f} | "
                   f"{af['1']:.3f} / {af['5']:.3f} / {af['10']:.3f} | {f(dr, 4)} |")
 
-    w('\n## 3. Paper claims that change or must be removed\n')
-    w('See the hand-written section appended after real results (`RESULTS_claims.md`), which is '
-      'reviewed against the tables above.\n')
+    mp = 'paper/SPRINT_PAPER_MAP.md'
+    if os.path.exists(mp):
+        w('\n' + open(mp).read())
     with open(os.path.join(base, 'RESULTS.md'), 'w') as fh:
         fh.write('\n'.join(L) + '\n')
     print('wrote', os.path.join(base, 'RESULTS.md'), f'({len(fl)} weakening flags)')

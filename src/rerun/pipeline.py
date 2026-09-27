@@ -52,7 +52,10 @@ SPLITS = {
     'gate':        range(40_000, 40_050),   # 50 episodes: Step-2 W1 impact gate only
 }
 # torch sampling seeds, one per split x purpose (never reused)
-TORCH_SEEDS = {'probe': 1_001, 'calibration': 2_001, 'evaluation': 3_001, 'gate': 4_001}
+TORCH_SEEDS = {'probe': 1_001, 'calibration': 2_001, 'evaluation': 3_001, 'gate': 4_001,
+               'evaluation_noisy': 3_002}
+NOISE_STD = 0.1              # Gaussian observation noise for the noisy evaluation set
+NOISE_SEED = 3_003
 IMAGINE_SEED_OFFSET = 50_000
 
 TASKS = {
@@ -136,6 +139,13 @@ def generate_episodes(task, seeds, ep_len=EP_LEN):
 
 
 def episodes_cached(task, split, cache_dir='outputs/sprint/episodes'):
+    if split == 'evaluation_noisy':
+        # same evaluation episodes; the model sees obs + N(0, NOISE_STD^2) (seeded).
+        # E^state is never computed on this set.
+        ep = dict(episodes_cached(task, 'evaluation', cache_dir))
+        rng = np.random.default_rng(NOISE_SEED)
+        ep['obs'] = (ep['obs'] + rng.standard_normal(ep['obs'].shape) * NOISE_STD).astype(np.float32)
+        return ep
     path = os.path.join(cache_dir, f'{task}_{split}.npz')
     if os.path.exists(path):
         return dict(np.load(path))
