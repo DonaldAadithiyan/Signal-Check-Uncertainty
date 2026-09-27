@@ -77,7 +77,8 @@ def main():
     out = '\n'.join(l if l.lstrip().startswith('%') else PAT.sub(sub, l) for l in src.split('\n'))
     with open(a.out, 'w') as f:
         f.write(out)
-    print(f'wrote {a.out}; {sum(len(PAT.findall(l)) for l in src.split(chr(10)) if not l.lstrip().startswith('%')) - len(missing)} filled, {len(missing)} unresolved')
+    n_all = sum(len(PAT.findall(l)) for l in src.split('\n') if not l.lstrip().startswith('%'))
+    print(f'wrote {a.out}; {n_all - len(missing)} filled, {len(missing)} unresolved')
     for k in sorted(set(missing)):
         print('  unresolved:', k)
     sys.exit(1 if missing else 0)
