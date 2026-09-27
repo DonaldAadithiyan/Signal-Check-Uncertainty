@@ -139,6 +139,7 @@ def fig4(R, out):
     ax.axhspan(-2, 2, color=NULL, alpha=0.35, lw=0)
     ax.axhline(0, color="0.5", lw=0.5)
     ax.set_xticks(range(len(ts)), ts)
+    ax.set_xlim(-0.5, len(ts) - 0.5)
     ax.set_ylabel("steering slope, $z$ vs 50-direction null")
     ax.plot([], [], "o", mfc="white", mec=READ, ms=3.5, ls="", label="readout $k{=}0$")
     ax.plot([], [], "o", color=READ, ms=3.5, ls="", label="readout $k{=}10$")
