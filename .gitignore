@@ -3,3 +3,5 @@ outputs/
 checkpoints/
 models/
 wandb/
+tests/__pycache__/
+src/rerun/__pycache__/
