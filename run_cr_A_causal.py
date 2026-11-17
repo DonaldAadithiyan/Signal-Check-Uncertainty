@@ -24,7 +24,7 @@ from src.camera_ready import causal as CZ
 from src.rerun import pipeline as P
 from run_sprint_p1p2 import calib_params
 
-OUT = os.path.join(C.ROOT, 'A_raw')
+OUT = os.environ.get('CR_RAW_DIR', os.path.join(C.ROOT, 'A_raw'))
 SITE_SEED = 31
 
 
@@ -32,9 +32,12 @@ def fit_probe(task, label):
     pr, cal = C.load_states(task, label, 'probe'), C.load_states(task, label, 'calibration')
     cp = calib_params(cal['kl'])
     D = pr['h'].shape[-1]
-    hp = pr['h'][:, C.MIN_T:].reshape(-1, D)
-    clf, sc = P.fit_probe(hp, (pr['kl'][:, C.MIN_T:].ravel() > cp['median']).astype(int))
-    v = P.probe_direction_raw(clf, sc).astype(np.float64)
+    if C.PROBE_MODE == 'paper':
+        clf, sc, v, hp = C.paper_probe(task, label)
+    else:
+        hp = pr['h'][:, C.MIN_T:].reshape(-1, D)
+        clf, sc = P.fit_probe(hp, (pr['kl'][:, C.MIN_T:].ravel() > cp['median']).astype(int))
+        v = P.probe_direction_raw(clf, sc).astype(np.float64)
     sigma_v = float((cal['h'][:, C.MIN_T:].reshape(-1, D) @ v).std())
     return clf, sc, v, sigma_v, hp
 

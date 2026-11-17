@@ -9,8 +9,8 @@ import os
 
 import numpy as np
 
-RAW = 'outputs/camera_ready/A_raw'
-OUT = 'outputs/camera_ready'
+RAW = os.environ.get('CR_RAW_DIR', 'outputs/camera_ready/A_raw')
+OUT = os.environ.get('CR_REPORT_DIR', 'outputs/camera_ready')
 TASKS = ['cartpole', 'reacher', 'pendulum']
 
 
@@ -24,12 +24,15 @@ def em(task, label='primary'):
 
 
 def labels(task):
-    return sorted(os.path.basename(p)[len(f'emergence_{task}_'):-5]
-                  for p in glob.glob(f'{RAW}/emergence_{task}_*.json'))
+    return sorted(l for l in (os.path.basename(p)[len(f'emergence_{task}_'):-5]
+                              for p in glob.glob(f'{RAW}/emergence_{task}_*.json')) if not l.startswith('pomdp_'))
+
+
+EXTRA_MODELS = {'cartpole': ['seed_0']}   # logged but not among the paper's 13 models
 
 
 def wm_labels(task):
-    return [l for l in labels(task)]
+    return [l for l in labels(task) if l not in EXTRA_MODELS.get(task, [])]
 
 
 def ci(d):
@@ -111,12 +114,12 @@ def main():
             flag='SIG CHANGE' if g['z'] > -2 else '')
     # ── Sec. 5.3 / Table 3 ──
     for t in TASKS:
-        g = E[t]['emergence']['geometry']['raw_top10']
-        g50 = E[t]['emergence']['geometry']['raw_top50']
+        g = E[t]['emergence']['geometry']['standardized_top10']
+        g50 = E[t]['emergence']['geometry']['standardized_top50']
         pub10 = {'cartpole': '0.5%', 'reacher': '0.2%', 'pendulum': '1.1–1.5%'}[t]
-        vals = [M[t][l]['geometry']['raw_top10']['frac'] * 100 for l in M[t]]
-        add(f'5.3a-{t}', '5.3/T3', f'{t} share of ‖v‖² in top-10 PCs (primary; range over models)', pub10,
-            f"{g['frac'] * 100:.2f}% ({rng_str(vals)}%); random {g['random_mean'] * 100:.1f}%, pct {g['percentile_vs_random']:.0f}",
+        vals = [M[t][l]['geometry']['standardized_top10']['frac'] * 100 for l in M[t]]
+        add(f'5.3a-{t}', '5.3/T3', f'{t} share of ‖w‖² in top-10 PCs, standardized h (paper\'s space; primary; range over models)', pub10,
+            f"{g['frac'] * 100:.2f}% ({rng_str(vals)}%); random {g['random_mean'] * 100:.1f}%, pct {g['percentile_vs_random']:.0f}; raw-space {E[t]['emergence']['geometry']['raw_top10']['frac'] * 100:.2f}%",
             flag='ABOVE RANDOM MEAN' if g['frac'] > g['random_mean'] else '')
         add(f'5.3b-{t}', '5.3', f'{t} share in top-50 PCs', {'cartpole': '9%', 'reacher': '—', 'pendulum': '—'}[t],
             f"{g50['frac'] * 100:.1f}%; random {g50['random_mean'] * 100:.1f}%, pct {g50['percentile_vs_random']:.0f}")
@@ -182,13 +185,13 @@ def main():
         add(f'6.3a-{t}', '6.3', f'{t} ΔR² adding C_t to EMARec alone', f'{pubh:+.3f}',
             f"{ci(h2h['C_paperdef'])} (cal {h2h['C_cal']['point']:+.3f})",
             flag='CI INCLUDES 0' if h2h['C_paperdef']['lo'] <= 0 else '')
-        sx = X[t]['scramble_external']['C_paperdef']
+        sx = X[t]['scramble_external'].get('C_glob_pg', X[t]['scramble_external']['C_paperdef'])
         pubz = {'cartpole': 19.6, 'reacher': 21.5, 'pendulum': -11.7}[t]
         fl = 'SIGN FLIP' if np.sign(sx['z']) != np.sign(pubz) else ('|z|<2' if abs(sx['z']) < 2 else '')
         if fl:
             stop.append(f'Fig 2c {t}: external scramble z {pubz:+.1f} -> {sx["z"]:+.1f} ({fl})')
         add(f'6.3b-{t}', '6.3/Fig2c', f'{t} external scramble z (r(C_t,E10) real vs scrambled)', f'{pubz:+.1f}',
-            f"{sx['z']:+.1f} (cal {X[t]['scramble_external']['C_cal']['z']:+.1f})", flag=fl)
+            f"{sx['z']:+.1f} (paper def.: global median, paper gamma; per-traj median {X[t]['scramble_external']['C_paperdef']['z']:+.1f}; cal {X[t]['scramble_external']['C_cal']['z']:+.1f})", flag=fl)
     # ── Sec. 7 / Table 5 ──
     pairs = []
     for s in (4242, 1717, 2929, 5151, 8383):
@@ -228,7 +231,8 @@ def main():
     # ── Table 6 / Sec. 8 ──
     allz_r, allz_p, allz_e = [], [], []
     for t in TASKS:
-        st = [load(p) for p in sorted(glob.glob(f'{RAW}/causal_steer_{t}_*.json'))]
+        st = [d_ for d_ in (load(p) for p in sorted(glob.glob(f'{RAW}/causal_steer_{t}_*.json')))
+              if d_['task'] == t and d_['label'] not in EXTRA_MODELS.get(t, [])]
         if not st:
             continue
         z = lambda k: [s_['null50'][k]['z'] for s_ in st]
@@ -252,6 +256,13 @@ def main():
                 flag='; '.join(fl))
             if fl and defn == 'probability':
                 stop.append(f'Table 6 {t} ({defn}): ' + '; '.join(fl))
+    for t, ls in EXTRA_MODELS.items():
+        for l in ls:
+            p = f'{RAW}/causal_steer_{t}_{l}.json'
+            if os.path.exists(p):
+                n_ = load(p)['null50']
+                add(f'T6x-{t}-{l}', 'T6 (extra)', f'{t}/{l} (not one of the paper\'s 13) steering z prob k0/k10, proj k0/k10, E',
+                    '—', ' / '.join(f"{n_[k]['z']:+.1f}" for k in ('slope_r0', 'slope_r10', 'slope_p0', 'slope_p10', 'slope_es')))
     if allz_r:
         add('8.1a', '8.1', 'range of readout z over models (k=0 and k=10), probability', '+5.2..+19.2',
             f'{min(allz_r):+.1f}..{max(allz_r):+.1f}', flag='MIN < 2' if min(allz_r) < 2 else '')
@@ -275,7 +286,7 @@ def main():
                     f"{np.mean(zs):+.2f}±{np.std(zs, ddof=1) if len(zs) > 1 else 0:.2f}",
                     flag='|z|>=2 on some model' if max(abs(z) for z in zs) >= 2 else '')
     for t in TASKS:
-        g = E[t]['emergence']['geometry']['raw_top50']
+        g = E[t]['emergence']['geometry']['standardized_top50']
         if t == 'cartpole':
             add('8.3', '8.3', 'cartpole share of v outside top-50 PCs; random', '91%; ≈80%',
                 f"{(1 - g['frac']) * 100:.0f}%; {(1 - g['random_mean']) * 100:.0f}%")

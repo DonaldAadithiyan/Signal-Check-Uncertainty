@@ -34,7 +34,7 @@ from src.probe.sae import TopKSAE, train_topk_sae, get_all_activations, sae_metr
 from src.rerun import pipeline as P
 from run_cr_A_causal import fit_probe
 
-OUT = os.path.join(C.ROOT, 'A_raw')
+OUT = os.environ.get('CR_RAW_DIR', os.path.join(C.ROOT, 'A_raw'))
 SAE_DIR = os.path.join(C.ROOT, 'sae')
 TASKS = ['cartpole', 'reacher', 'pendulum']
 PUBLISHED_ATOMS = {'cartpole': 156, 'reacher': 612, 'pendulum': 310}

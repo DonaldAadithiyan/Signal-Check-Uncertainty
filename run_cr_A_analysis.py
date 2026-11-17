@@ -27,7 +27,7 @@ from src.rerun.stats import GramSet, pearson_ci
 from run_sprint_p1p2 import (kl_matched_contrast, within_bin_r, ridge_fit, r2, calib_params,
                              N_KL_BINS, CONTRAST_FRAC)
 
-OUT = os.path.join(C.ROOT, 'A_raw')
+OUT = os.environ.get('CR_RAW_DIR', os.path.join(C.ROOT, 'A_raw'))
 PAPER_GAMMA = {'cartpole': 0.95, 'reacher': 0.70, 'pendulum': 0.90, 'cartpole_pomdp': None}
 N_SCR = 20
 SCR_SEED = 2027
@@ -110,8 +110,11 @@ def emergence(task, label, kind):
     yp = (S['probe']['kl'][:, M:].ravel() > cp['median']).astype(int)
     if not (0.2 < yp.mean() < 0.8):
         raise AssertionError(f'probe label balance {yp.mean():.3f} out of range ({task}/{label})')
-    clf, sc = P.fit_probe(hp, yp)
-    v = P.probe_direction_raw(clf, sc).astype(np.float64)
+    if C.PROBE_MODE == 'paper':
+        clf, sc, v, hp = C.paper_probe(task, label)   # geometry then uses the training-log fit states (as the paper)
+    else:
+        clf, sc = P.fit_probe(hp, yp)
+        v = P.probe_direction_raw(clf, sc).astype(np.float64)
     ev, cal = S['evaluation'], S['calibration']
     mask, mask_cal = P.site_mask(ev['kl'].shape), P.site_mask(cal['kl'].shape)
     ro, ro_cal = P.probe_scores(clf, sc, ev['h']), P.probe_scores(clf, sc, cal['h'])
@@ -119,7 +122,7 @@ def emergence(task, label, kind):
     proj = ev['h'].astype(np.float64) @ v
     proj_cal = cal['h'].astype(np.float64) @ v
     kl = ev['kl'].astype(np.float64)
-    out = dict(task=task, label=label, calib=cp, n_eval_sites=int(mask.sum()),
+    out = dict(task=task, label=label, calib=cp, probe_mode=C.PROBE_MODE, n_eval_sites=int(mask.sum()),
                probe_label_rate=float(yp.mean()))
     out['auroc_clean'] = float(roc_auc_score((kl[mask] > cp['median']).astype(int), ro[mask]))
     g_cal, g_scores = pick_gamma(ro_cal, cal['kl'], cp['median'], mask_cal)
@@ -157,6 +160,7 @@ def emergence(task, label, kind):
         out['relabel_by_C_auroc'] = contrast_by(f(kl), f(cols['C']), f(ro))
     # ridge scramble (Fig. 1d): h -> C_t, fit on probe-fit episodes, R^2 on evaluation
     he = ev['h'][:, M:].reshape(-1, D)
+    hp = S['probe']['h'][:, M:].reshape(-1, D)      # ridge h->C_t always fit on probe-fit episodes
     rng = np.random.default_rng(SCR_SEED)
     tp = ct_cal(S['probe']['kl'], cp['median'], g_cal)[:, M:].ravel()
     te = cols['C'][:, M:].ravel()
@@ -185,6 +189,9 @@ def external(task, label, kind, st, ens_models=None, controls=('kl', 'rec', 'ema
     cols = dict(kl=kl, rec=ev['rec'].astype(np.float64), emarec=P.ema(ev['rec'], a_paper),
                 C_cal=ct_cal(kl, cp['median'], g_cal), C_paperdef=ct_per_traj_median(kl, gp),
                 C_cal_pg=ct_cal(kl, cp['median'], gp), readout=ro)
+    # Fig. 2c / Phase-2 definition: one global threshold (calibration median here; the
+    # paper used the training-log median) and the paper's gamma
+    cols['C_glob_pg'] = cols['C_cal_pg']
     for K in C.HORIZONS:
         cols[f'E{K}'] = ev[f'estate_{K}']
     ctrl = list(controls)
@@ -209,8 +216,8 @@ def external(task, label, kind, st, ens_models=None, controls=('kl', 'rec', 'ema
     # Fig. 2c: r(C_t, E10) real vs time-scrambled
     rng = np.random.default_rng(SCR_SEED + 1)
     scr = {}
-    for name, thr in (('C_paperdef', None), ('C_cal', cp['median'])):
-        g = gp if name == 'C_paperdef' else g_cal
+    for name, thr in (('C_paperdef', None), ('C_cal', cp['median']), ('C_glob_pg', cp['median'])):
+        g = g_cal if name == 'C_cal' else gp
         real = pearsonr(cols[name][mask], cols['E10'][mask])[0]
         null = []
         for _ in range(N_SCR):

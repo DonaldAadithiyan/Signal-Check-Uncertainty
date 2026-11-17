@@ -28,7 +28,9 @@ from src.rerun.pipeline import (SPLITS, TORCH_SEEDS, NOISE_STD, NOISE_SEED, MIN_
 
 ROOT = 'outputs/camera_ready'
 EP_DIR = os.path.join(ROOT, 'episodes')
-ST_DIR = os.path.join(ROOT, 'states')
+ST_DIR = os.environ.get('CR_STATE_DIR', os.path.join(ROOT, 'states'))
+# CR_CONVENTION=buggy reproduces the old a_t pairing (control only; never a result)
+CONVENTION = os.environ.get('CR_CONVENTION', 'correct')
 KMAX = max(HORIZONS)
 
 # ─── model registry ──────────────────────────────────────────────────────────
@@ -143,7 +145,12 @@ def log_states_full(model, ep, torch_seed, batch=128):
     """Corrected-convention filtering over episodes. Returns h, z_idx, kl, rec,
     ent_prior, ent_post (all (E,T[,..]))."""
     rssm = model.rssm
-    feed = P.prev_actions(ep['act'])
+    if CONVENTION == 'correct':
+        feed = P.prev_actions(ep['act'])
+    elif CONVENTION == 'buggy':
+        feed = ep['act']
+    else:
+        raise ValueError(CONVENTION)
     gen = torch.Generator().manual_seed(int(torch_seed))
     E, T = ep['act'].shape[:2]
     out = dict(h=np.zeros((E, T, rssm.deter), np.float32), z_idx=np.zeros((E, T, rssm.stoch), np.uint8),
@@ -185,7 +192,8 @@ def reward_from_obs(task, o):
         return R.tolerance(np.linalg.norm(o[..., 2:4], axis=-1), bounds=(0, _REACHER_RADII))
     if task == 'pendulum':
         return R.tolerance(o[..., 0], bounds=(_PENDULUM_COS_BOUND, 1.0))
-    raise ValueError(task)
+    # no reward reconstruction for other tasks (only Sec. 10.3, which covers cartpole/reacher)
+    return np.full(o.shape[:-1], np.nan)
 
 
 @torch.no_grad()
@@ -281,3 +289,41 @@ def assert_finite(d, where):
                 'estate_1', 'estate_5', 'estate_10', 'estate_20', 'imag_rew_10', 'real_rew_10'):
             if not np.all(np.isfinite(v)):
                 raise FloatingPointError(f'non-finite values in {k} ({where})')
+
+
+# ─── probe-fitting set (CR_PROBE) ────────────────────────────────────────────
+# 'paper'  : the paper's probe -- logistic regression on 60% of the model's own
+#            online training log (stratified by 1[KL > training-log median],
+#            random_state=0), v = probe_direction (unit, raw h space). Applied to
+#            corrected states. Isolates the effect of the logging fix.
+# 'frozen' : probe fit on frozen-model probe-fit episodes (handoff protocol).
+PROBE_MODE = os.environ.get('CR_PROBE', 'frozen')
+
+
+def training_log_path(task, label):
+    if task == 'cartpole_pomdp':
+        cond, seed = label.split('_')
+        if seed == '4242':
+            return f'outputs/phase4_pomdp/{cond}_training_states.npz'
+        return f'outputs/phase4_pomdp/seed_sweep/seed_{seed}/{cond}_training_states.npz'
+    if label == 'primary':
+        return {'cartpole': 'outputs/data/training_states.npz',
+                'reacher': 'outputs/second_env/reacher_easy_training_states.npz',
+                'pendulum': 'outputs/third_env/pendulum_swingup_training_states.npz'}[task]
+    if task == 'cartpole':
+        return f'outputs/multiseed/{label}/training_states.npz'
+    return f'outputs/multiseed_env/{label}/states.npz'
+
+
+def paper_probe(task, label):
+    """Returns (clf, scaler, v_unit, h_fit) exactly as the paper's scripts fit it."""
+    from sklearn.model_selection import train_test_split
+    from src.probe.linear_probe import binarise_by_median, train_probe
+    from src.probe.intervention import probe_direction
+    tr = np.load(training_log_path(task, label))
+    h, kl = tr['h'], tr['kl']
+    y = binarise_by_median(kl)
+    idx, _ = train_test_split(np.arange(len(h)), test_size=0.40, stratify=y, random_state=0)
+    clf, sc = train_probe(h[idx], y[idx])
+    v = probe_direction(clf, sc).astype(np.float64)
+    return clf, sc, v / np.linalg.norm(v), h[idx]
