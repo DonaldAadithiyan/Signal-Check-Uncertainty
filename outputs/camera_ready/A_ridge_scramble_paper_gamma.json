@@ -1,0 +1,44 @@
+{
+ "corrected/cartpole": {
+  "gamma": 0.95,
+  "real": 0.8239419726514523,
+  "scrambled_mean": 0.230671373086249,
+  "scrambled_sd": 0.025994719705875677,
+  "z": 22.822735012261138
+ },
+ "corrected/reacher": {
+  "gamma": 0.7,
+  "real": 0.5266089242124303,
+  "scrambled_mean": 0.021689855966677413,
+  "scrambled_sd": 0.013924609920823016,
+  "z": 36.26091295316584
+ },
+ "corrected/pendulum": {
+  "gamma": 0.9,
+  "real": 0.9428744372514786,
+  "scrambled_mean": 0.9390612943692886,
+  "scrambled_sd": 0.0015794649056775042,
+  "z": 2.414199181307098
+ },
+ "oldpairing/cartpole": {
+  "gamma": 0.95,
+  "real": 0.8399217678413581,
+  "scrambled_mean": 0.2178606772570188,
+  "scrambled_sd": 0.024947515341730602,
+  "z": 24.934791383564978
+ },
+ "oldpairing/reacher": {
+  "gamma": 0.7,
+  "real": 0.5270365118671967,
+  "scrambled_mean": 0.07145191201984993,
+  "scrambled_sd": 0.007858472010865586,
+  "z": 57.97368740607954
+ },
+ "oldpairing/pendulum": {
+  "gamma": 0.9,
+  "real": 0.9493546376629287,
+  "scrambled_mean": 0.9339748197980192,
+  "scrambled_sd": 0.0016918337687699405,
+  "z": 9.090619982181522
+ }
+}
