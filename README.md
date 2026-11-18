@@ -17,7 +17,6 @@ A small DreamerV3-style world model is trained only to predict its observations.
 | Final numbers | Done: [outputs/camera_ready/camera_ready_numbers.md](outputs/camera_ready/camera_ready_numbers.md) |
 | Reviewer analyses (Tasks 1–4 + cross-validated ΔR²) | Done: see [Camera-ready results](#camera-ready-results) |
 | Final figures | Done: [outputs/camera_ready/figures_final/](outputs/camera_ready/figures_final/) (11 vector PDFs + PNG previews + [FIGURE_MANIFEST.md](outputs/camera_ready/figures_final/FIGURE_MANIFEST.md)) |
-| Paper text (`paper/icaart_main.tex`) | **Not yet updated** to the final numbers |
 
 Progress log: [outputs/camera_ready/STATUS.md](outputs/camera_ready/STATUS.md).
 
@@ -164,7 +163,6 @@ Relevant environment variables:
 
 | Path | Contents |
 |---|---|
-| `paper/icaart_main.tex` | Paper source (pre-camera-ready numbers) |
 | `paper/fill_paper.py` | Fills `\res{…}` macros from result JSON |
 | `paper/PAPER_AGENT_HANDOFF.md` | Notes for writing the paper text |
 
