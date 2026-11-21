@@ -1,4 +1,4 @@
-# Item 1 — Corrected-logging re-check of the published numbers (ICAART 2027 #388)
+# Corrected-logging re-check of earlier numbers
 
 Run 2026-11-16/17 on the local M4, CPU. Code:
 - `src/camera_ready/{core,causal}.py`

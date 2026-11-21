@@ -1,8 +1,8 @@
-# Task 3: decision example, selective trust in imagination (Reviewer 1), corrected data
+# Task 3: decision example, selective trust in imagination
 
 Rule: corrected logging; probe refit on corrected probe-fit episodes (paper recipe); published γ 0.95/0.70/0.90 and EMARec α 0.02/0.5/0.02; readout = probe probability σ(vᵀh+b), logit stored; canonical 50-direction null; trajectory bootstrap 1,000 (seed 7); primary model per task; 100 evaluation episodes = 46,700 sites per task. Script: `run_t123.py`; raw: `T123_raw.json`.
 
-## Protocol (as pre-registered in the handoff)
+## Protocol (pre-registered)
 
 - **Decision:** at each evaluation site, trust the 10-step imagined rollout or fall back. A signal ranks the 46,700 sites; at coverage c the agent trusts the fraction c with the lowest signal.
 - **Risk:** mean E_{t,10} over the trusted sites, for c = 0.1, …, 1.0. AURC is the mean risk over these 10 coverages (lower is better). Risk at c = 0.5 and 0.8 is also reported.
@@ -14,10 +14,10 @@ Rule: corrected logging; probe refit on corrected probe-fit episodes (paper reci
   - random ranking (mean of 100 seeded permutations)
   - the 50 canonical null directions, each oriented like v (sign of corr(uᵀh, KL) on probe-fit episodes)
   - oracle (true E_{t,10})
-- **Ranking:** the readout is ranked by its logit, as instructed. Ties are broken by a seeded random permutation and counted.
+- **Ranking:** the readout is ranked by its logit, because the probability saturates. Ties are broken by a seeded random permutation and counted.
 - **CIs:** trajectory bootstrap of AURC with the ranking held fixed. The best non-oracle baseline is chosen by point AURC.
 - **Null z:** z = (null mean AURC − AURC)/null sd, so positive means better than the random directions.
-- **Figure:** `T3_risk_coverage.pdf` is not produced, because figures are on hold. The full curves are in `T3_decision.json` (`risk.<signal>.curve`).
+- **Figure:** `figures_final/fig07{a,b,c}_risk_coverage_*.pdf`. The full curves are in `T3_decision.json` (`risk.<signal>.curve`).
 
 ## Results
 

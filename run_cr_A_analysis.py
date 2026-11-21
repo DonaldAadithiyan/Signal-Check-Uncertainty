@@ -3,10 +3,10 @@
 corrected states (outputs/camera_ready/states).
 
 Definitions follow the accepted paper; where the paper's own procedure violates the
-handoff's rules (step-level splits, gamma tuned on the reported fit, per-trajectory
+calibration rules (step-level splits, gamma tuned on the reported fit, per-trajectory
 median that includes future steps), BOTH are reported:
   *_paperdef  : paper's definition applied to corrected states
-  *_cal       : calibration-split threshold / gamma (handoff Rules 2-3)
+  *_cal       : calibration-split threshold / gamma (calibration rules)
 Probe: logistic regression (C=1, lbfgs, standardised) on probe-fit episodes, label
 1[KL_t > calibration median]. Readout = probe probability (as in the paper's code);
 the logit is also reported. All reported numbers are on evaluation episodes.

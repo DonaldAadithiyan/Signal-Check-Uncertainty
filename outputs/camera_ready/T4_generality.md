@@ -1,4 +1,4 @@
-# Task 4: generality on two additional DeepMind Control tasks (Reviewer 2)
+# Task 4: generality on two additional DeepMind Control tasks
 
 **Choice recorded before training** (`outputs/t4_generality/TASK_CHOICE.md`): walker-walk and cheetah-run. Both trained, so the fallback (ball_in_cup-catch) was not used.
 

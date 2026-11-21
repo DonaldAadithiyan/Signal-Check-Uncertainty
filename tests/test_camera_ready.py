@@ -1,4 +1,4 @@
-"""Camera-ready preconditions (Rule 1, Rule 4). Must pass before any Part A run."""
+"""Preconditions: action pairing, logging consistency, determinism. Must pass before any analysis run."""
 import numpy as np
 import torch
 

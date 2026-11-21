@@ -1,8 +1,7 @@
-# Camera-ready numbers: final (ICAART 2027 #388)
+# Final numbers
 
 Generated 2026-11-17.
 - Source: `camera_ready_numbers.json`, built by `run_cr_final_numbers.py`. The rows below are generated from it by `run_cr_numbers_table.py`, which also writes them, with their flags, into the JSON under `table`. No value is typed by hand.
-- Figures are not regenerated (as instructed).
 
 ## Rule applied
 
@@ -53,7 +52,7 @@ Generated 2026-11-17.
 - The other 12 of 13 models stay below the random 5th percentile.
 
 **Section 6.3 / Fig. 2c:**
-- **Pendulum's external scramble z: −11.7 → +21.0, a sign flip.** With the Section-6 C_t on the Fig. 2a sites (Decision 2), real-order C_t beats the scrambled one on pendulum too, so "on pendulum the order effect reverses" no longer holds.
+- **Pendulum's external scramble z: −11.7 → +21.0, a sign flip.** With the Section-6 C_t on the Fig. 2a sites, real-order C_t beats the scrambled one on pendulum too, so "on pendulum the order effect reverses" no longer holds.
 
 **Section 6.1:**
 - Reacher's r(C_t, E_K) no longer decays with horizon: +0.48 / +0.51 / +0.52 / +0.52 (published "decays").

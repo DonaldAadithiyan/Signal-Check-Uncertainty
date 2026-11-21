@@ -1,4 +1,4 @@
-# Task 2: comparison with alternative difficulty signals (Reviewer 2), corrected data
+# Task 2: comparison with alternative difficulty signals
 
 Rule: corrected logging; probe refit on corrected probe-fit episodes (paper recipe); published γ 0.95/0.70/0.90 and EMARec α 0.02/0.5/0.02; readout = probe probability σ(vᵀh+b), logit stored; canonical 50-direction null; trajectory bootstrap 1,000 (seed 7); primary model per task; 100 evaluation episodes = 46,700 sites per task. Script: `run_t123.py`; raw: `T123_raw.json`.
 

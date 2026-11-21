@@ -1,5 +1,5 @@
 """
-Camera-ready (ICAART 2027 #388) corrected logging, built on src/rerun/pipeline.py.
+Corrected logging, built on src/rerun/pipeline.py.
 
 Additions over the sprint pipeline:
   * episodes also carry the true environment state (qpos, qvel, and for reacher
@@ -296,7 +296,7 @@ def assert_finite(d, where):
 #            online training log (stratified by 1[KL > training-log median],
 #            random_state=0), v = probe_direction (unit, raw h space). Applied to
 #            corrected states. Isolates the effect of the logging fix.
-# 'frozen' : probe fit on frozen-model probe-fit episodes (handoff protocol).
+# 'frozen' : probe fit on frozen-model probe-fit episodes (default protocol).
 PROBE_MODE = os.environ.get('CR_PROBE', 'frozen')
 
 

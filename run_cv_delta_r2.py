@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.11
-"""Out-of-sample Delta R^2 (camera-ready, ICAART 2027 #388), final rule.
+"""Out-of-sample Delta R^2 (final rule).
 
 Sites: the same 46,700 evaluation sites per task (100 episodes, t in [12, 479]) with E_{t,10}.
 Grouped 5-fold CV by trajectory: the 100 evaluation episodes are permuted with a fixed

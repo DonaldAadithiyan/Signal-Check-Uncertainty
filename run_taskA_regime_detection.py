@@ -17,7 +17,7 @@ Preflight (Step A0, see outputs/deliverables/task_A_regime_detection_preflight.m
 confirmed Task 10's logs cannot be reused (open-loop imagination post-shift,
 no raw h_t/KL_t trajectories saved). Fresh inference-only rollouts required.
 
-Everything below is fixed per the handoff spec before any result is seen.
+Everything below is fixed before any result is seen.
 """
 
 import os

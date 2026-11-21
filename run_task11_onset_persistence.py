@@ -8,7 +8,7 @@ sub-experiments below fail their ship rules, the honest conclusion ("C_t is
 an emergent, mechanistically real internal representation, but not yet a
 demonstrably superior OPERATIONAL signal") is the final word on utility, and
 no Task 12 is proposed regardless of what new ideas surface afterward. This
-is stated up front, not just at the end, per the task spec's own instruction.
+is stated up front, not just at the end.
 
 Infrastructure check (outputs/deliverables/task_11_infrastructure_check.md):
 CONFIRMED cheap -- reuses run_phase1_external_validation's

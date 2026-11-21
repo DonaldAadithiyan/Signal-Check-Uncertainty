@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.11
-"""Camera-ready Item B: SAEs retrained on corrected states (paper recipe), all 3 runs.
+"""SAEs retrained on corrected states (paper recipe), all 3 runs.
 
 Fixed choices: corrected logging; the paper's probe v (60% of the model's training
 log); readout = projection v^T h_t; canonical 50-direction null with CRN.

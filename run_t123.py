@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.11
-"""Camera-ready Tasks 1-3 (ICAART 2027 #388) under the final rule:
+"""Camera-ready Tasks 1-3 under the final rule:
 corrected logging; probe v refit on corrected probe-fit episodes (paper recipe, label
 1[KL_t > calibration median]); published gamma (0.95/0.70/0.90) and EMARec alpha
 (0.02/0.5/0.02); readout = probe probability sigma(v^T h_t + b), logit stored; canonical

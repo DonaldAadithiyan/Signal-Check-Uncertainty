@@ -8,7 +8,7 @@ outputs/taskB_training_necessity/) has produced checkpoints/states for every
 (task, condition, seed) cell.
 
 Implements §3.7 (primary outcomes), §3.8 (re-emergence, quantitative bar),
-§3.9 (outcome classification) of the handoff spec.
+§3.9 (outcome classification) of the analysis plan.
 
 §3.7 primary outcomes, measured on held-out evaluation trajectories (fixed
 seeds 40000-40029, NEVER used for the running v estimate during training):

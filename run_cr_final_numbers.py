@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.11
-"""Camera-ready Item C: final numbers for ICAART 2027 #388 with the fixed choices
+"""Final numbers with the fixed choices
   * corrected logging (o_t with a_{t-1}); evaluation episodes 30000-30099
   * everything the paper learned from the (mis-paired) training log is refit on the
     corrected probe-fit episodes (seeds 10000-10099) with the paper's recipe:
